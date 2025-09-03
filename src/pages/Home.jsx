@@ -1,7 +1,6 @@
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
-import { Link } from 'react-router-dom'
-import { FiPlus, FiFile, FiClock } from 'react-icons/fi'
+import { Plus, File, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function Home() {
@@ -64,7 +63,7 @@ export default function Home() {
         {workspaces.length === 0 ? (
           <div className="text-center py-12">
             <div className="mb-6">
-              <FiFile className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <File className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
                 No workspaces yet
               </h3>
@@ -87,7 +86,7 @@ export default function Home() {
                 onClick={handleCreateDocument}
                 className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <FiPlus className="w-4 h-4" />
+                <Plus className="w-4 h-4" />
                 New Page
               </button>
             </div>
@@ -97,19 +96,19 @@ export default function Home() {
                 onClick={handleCreateDocument}
                 className="p-6 border-2 border-dashed border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition-colors"
               >
-                <FiPlus className="w-8 h-8 text-gray-400 mb-3" />
+                <Plus className="w-8 h-8 text-gray-400 mb-3" />
                 <h3 className="font-medium text-gray-900 mb-1">Blank Page</h3>
                 <p className="text-sm text-gray-600">Start with a blank canvas</p>
               </div>
 
               <div className="p-6 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                <FiFile className="w-8 h-8 text-blue-600 mb-3" />
+                <File className="w-8 h-8 text-blue-600 mb-3" />
                 <h3 className="font-medium text-gray-900 mb-1">Meeting Notes</h3>
                 <p className="text-sm text-gray-600">Template for meeting notes</p>
               </div>
 
               <div className="p-6 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                <FiClock className="w-8 h-8 text-green-600 mb-3" />
+                <Clock className="w-8 h-8 text-green-600 mb-3" />
                 <h3 className="font-medium text-gray-900 mb-1">Daily Journal</h3>
                 <p className="text-sm text-gray-600">Template for daily journaling</p>
               </div>

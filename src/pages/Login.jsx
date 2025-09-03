@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
-import { FiGithub, FiMail, FiLock } from 'react-icons/fi'
+import { Github, Mail, Lock } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function Login() {
@@ -56,7 +56,7 @@ export default function Login() {
             disabled={isLoading}
             className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50"
           >
-            <FiGithub className="text-xl" />
+            <Github className="text-xl" />
             Continue with GitHub
           </button>
 
@@ -75,7 +75,7 @@ export default function Login() {
                 Email address
               </label>
               <div className="relative">
-                <FiMail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   id="email"
                   type="email"
@@ -93,7 +93,7 @@ export default function Login() {
                 Password
               </label>
               <div className="relative">
-                <FiLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   id="password"
                   type="password"

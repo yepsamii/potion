@@ -6,8 +6,7 @@ import '@blocknote/react/style.css'
 export default function Editor({ 
   content, 
   onChange, 
-  editable = true, 
-  placeholder = "Start typing..." 
+  editable = true
 }) {
   const [initialContent, setInitialContent] = useState(null)
 

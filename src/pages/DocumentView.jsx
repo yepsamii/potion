@@ -4,9 +4,9 @@ import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import Editor from '../components/Editor'
 import { 
-  FiMoreHorizontal, FiTrash2, FiShare2, FiStar, 
-  FiImage, FiSmile, FiGithub, FiClock 
-} from 'react-icons/fi'
+  MoreHorizontal, Trash2, Share2, Star, 
+  Github, Clock 
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function DocumentView() {
@@ -170,28 +170,28 @@ export default function DocumentView() {
               className="p-2 hover:bg-notion-gray-100 rounded transition-colors"
               title="Share"
             >
-              <FiShare2 className="w-4 h-4" />
+              <Share2 className="w-4 h-4" />
             </button>
             
             <button
               className="p-2 hover:bg-notion-gray-100 rounded transition-colors"
               title="Add to favorites"
             >
-              <FiStar className="w-4 h-4" />
+              <Star className="w-4 h-4" />
             </button>
             
             <button
               className="p-2 hover:bg-notion-gray-100 rounded transition-colors"
               title="Sync to GitHub"
             >
-              <FiGithub className="w-4 h-4" />
+              <Github className="w-4 h-4" />
             </button>
             
             <button
               className="p-2 hover:bg-notion-gray-100 rounded transition-colors"
               title="Version history"
             >
-              <FiClock className="w-4 h-4" />
+              <Clock className="w-4 h-4" />
             </button>
 
             <div className="relative">
@@ -199,7 +199,7 @@ export default function DocumentView() {
                 className="p-2 hover:bg-notion-gray-100 rounded transition-colors"
                 title="More options"
               >
-                <FiMoreHorizontal className="w-4 h-4" />
+                <MoreHorizontal className="w-4 h-4" />
               </button>
             </div>
             
@@ -208,7 +208,7 @@ export default function DocumentView() {
               className="p-2 hover:bg-red-100 text-red-600 rounded transition-colors"
               title="Delete"
             >
-              <FiTrash2 className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
         </div>

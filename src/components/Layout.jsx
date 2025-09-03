@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Sidebar from './Sidebar'
-import { FiMenu } from 'react-icons/fi'
+import { Menu } from 'lucide-react'
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -15,7 +15,7 @@ export default function Layout({ children }) {
             onClick={() => setSidebarOpen(true)}
             className="p-2 rounded-md hover:bg-notion-gray-100"
           >
-            <FiMenu className="w-5 h-5" />
+            <Menu className="w-5 h-5" />
           </button>
         </header>
         

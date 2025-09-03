@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
-import { FiUser, FiMoon, FiSun, FiGithub, FiTrash2 } from 'react-icons/fi'
+import { User, Moon, Sun, Github, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function Settings() {
@@ -39,7 +39,7 @@ export default function Settings() {
           {/* Profile Section */}
           <div className="bg-white rounded-lg border border-notion p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <FiUser className="w-5 h-5" />
+              <User className="w-5 h-5" />
               Profile
             </h2>
             <div className="space-y-4">
@@ -98,7 +98,7 @@ export default function Settings() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
                   <div className="flex items-center gap-2 mb-2">
-                    <FiSun className="w-4 h-4" />
+                    <Sun className="w-4 h-4" />
                     <span className="font-medium">Light</span>
                   </div>
                   <div className="bg-white border rounded p-2">
@@ -109,7 +109,7 @@ export default function Settings() {
                 
                 <div className="p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
                   <div className="flex items-center gap-2 mb-2">
-                    <FiMoon className="w-4 h-4" />
+                    <Moon className="w-4 h-4" />
                     <span className="font-medium">Dark</span>
                   </div>
                   <div className="bg-gray-800 border border-gray-600 rounded p-2">
@@ -127,7 +127,7 @@ export default function Settings() {
             <div className="space-y-4">
               <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                 <div className="flex items-center gap-3">
-                  <FiGithub className="w-6 h-6" />
+                  <Github className="w-6 h-6" />
                   <div>
                     <h3 className="font-medium text-gray-900">GitHub</h3>
                     <p className="text-sm text-gray-600">
@@ -145,7 +145,7 @@ export default function Settings() {
           {/* Danger Zone */}
           <div className="bg-white rounded-lg border border-red-200 p-6">
             <h2 className="text-xl font-semibold text-red-900 mb-4 flex items-center gap-2">
-              <FiTrash2 className="w-5 h-5" />
+              <Trash2 className="w-5 h-5" />
               Danger Zone
             </h2>
             <div className="space-y-4">

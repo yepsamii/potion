@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
-import { FiTrash2, FiRotateCcw, FiX } from 'react-icons/fi'
+import { Trash2, RotateCcw, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function Trash() {
@@ -46,7 +46,7 @@ export default function Trash() {
       <div className="max-w-4xl mx-auto px-8 py-12">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4 flex items-center gap-3">
-            <FiTrash2 className="w-8 h-8" />
+            <Trash2 className="w-8 h-8" />
             Trash
           </h1>
           <p className="text-gray-600">
@@ -56,7 +56,7 @@ export default function Trash() {
 
         {deletedDocuments.length === 0 ? (
           <div className="text-center py-12">
-            <FiTrash2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <Trash2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
               Trash is empty
             </h3>
@@ -90,7 +90,7 @@ export default function Trash() {
                     className="flex items-center gap-2 px-3 py-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                     title="Restore"
                   >
-                    <FiRotateCcw className="w-4 h-4" />
+                    <RotateCcw className="w-4 h-4" />
                     Restore
                   </button>
                   
@@ -99,7 +99,7 @@ export default function Trash() {
                     className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                     title="Delete permanently"
                   >
-                    <FiX className="w-4 h-4" />
+                    <X className="w-4 h-4" />
                     Delete
                   </button>
                 </div>
