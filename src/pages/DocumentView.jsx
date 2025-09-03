@@ -8,6 +8,16 @@ import {
   Github, Clock 
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 
 export default function DocumentView() {
   const { id } = useParams()
@@ -99,31 +109,35 @@ export default function DocumentView() {
   const emojis = ['📄', '📝', '📋', '📊', '📈', '📅', '💡', '🔥', '⭐', '❤️', '🎯', '🚀', '💼', '🏠', '🎨', '🎵']
 
   return (
-    <div className="h-full bg-white">
+    <div className="h-full bg-background">
       {/* Header */}
-      <div className="border-b border-notion px-8 py-4">
+      <div className="border-b border-border px-8 py-4">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
           <div className="flex items-center gap-4 flex-1 min-w-0">
             {/* Emoji Picker */}
             <div className="relative">
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="text-2xl hover:bg-notion-gray-100 p-1 rounded transition-colors"
+                className="text-2xl h-auto p-1"
               >
                 {emoji}
-              </button>
+              </Button>
               
               {showEmojiPicker && (
-                <div className="absolute top-full left-0 mt-2 bg-white border border-notion shadow-lg rounded-lg p-3 z-10">
+                <div className="absolute top-full left-0 mt-2 bg-background border border-border shadow-lg rounded-lg p-3 z-10">
                   <div className="grid grid-cols-4 gap-2">
                     {emojis.map(e => (
-                      <button
+                      <Button
                         key={e}
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleEmojiChange(e)}
-                        className="text-2xl p-2 hover:bg-notion-gray-100 rounded transition-colors"
+                        className="text-2xl h-auto p-2"
                       >
                         {e}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -132,7 +146,7 @@ export default function DocumentView() {
 
             {/* Title */}
             {isEditingTitle ? (
-              <input
+              <Input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -150,13 +164,13 @@ export default function DocumentView() {
                     setTitle(document.title)
                   }
                 }}
-                className="text-2xl font-bold bg-transparent border-0 outline-none flex-1 min-w-0"
+                className="text-2xl font-bold bg-transparent border-0 shadow-none p-0 h-auto flex-1 min-w-0 focus-visible:ring-0"
                 autoFocus
               />
             ) : (
               <h1
                 onClick={() => setIsEditingTitle(true)}
-                className="text-2xl font-bold cursor-pointer hover:bg-notion-gray-100 px-2 py-1 rounded flex-1 min-w-0 truncate"
+                className="text-2xl font-bold cursor-pointer hover:bg-muted px-2 py-1 rounded flex-1 min-w-0 truncate"
               >
                 {title}
               </h1>
@@ -164,60 +178,92 @@ export default function DocumentView() {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
-            <button
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleShare}
-              className="p-2 hover:bg-notion-gray-100 rounded transition-colors"
-              title="Share"
+              className="h-8 w-8"
             >
               <Share2 className="w-4 h-4" />
-            </button>
+            </Button>
             
-            <button
-              className="p-2 hover:bg-notion-gray-100 rounded transition-colors"
-              title="Add to favorites"
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
             >
               <Star className="w-4 h-4" />
-            </button>
+            </Button>
             
-            <button
-              className="p-2 hover:bg-notion-gray-100 rounded transition-colors"
-              title="Sync to GitHub"
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
             >
               <Github className="w-4 h-4" />
-            </button>
+            </Button>
             
-            <button
-              className="p-2 hover:bg-notion-gray-100 rounded transition-colors"
-              title="Version history"
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
             >
               <Clock className="w-4 h-4" />
-            </button>
+            </Button>
 
-            <div className="relative">
-              <button
-                className="p-2 hover:bg-notion-gray-100 rounded transition-colors"
-                title="More options"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>
+                  <Star className="mr-2 h-4 w-4" />
+                  Add to favorites
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Github className="mr-2 h-4 w-4" />
+                  Sync to GitHub
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Clock className="mr-2 h-4 w-4" />
+                  Version history
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleDelete}
-              className="p-2 hover:bg-red-100 text-red-600 rounded transition-colors"
-              title="Delete"
+              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
             >
               <Trash2 className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Document Info */}
-      <div className="px-8 py-2 border-b border-notion text-sm text-gray-500">
-        <div className="max-w-4xl mx-auto">
-          Last edited {new Date(document.updatedAt).toLocaleString()}
+      <div className="px-8 py-2 border-b border-border">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Last edited {new Date(document.updatedAt).toLocaleString()}
+          </p>
+          <Badge variant="secondary" className="text-xs">
+            Draft
+          </Badge>
         </div>
       </div>
 

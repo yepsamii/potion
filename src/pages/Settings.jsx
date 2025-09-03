@@ -2,6 +2,12 @@ import { useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { User, Moon, Sun, Github, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Separator } from "@/components/ui/separator"
 
 export default function Settings() {
   const { signOut } = useAuthActions()
@@ -31,152 +37,176 @@ export default function Settings() {
   }
 
   return (
-    <div className="h-full bg-notion overflow-auto">
-      <div className="max-w-3xl mx-auto px-8 py-12">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Settings</h1>
+    <div className="h-full bg-background overflow-auto">
+      <div className="max-w-4xl mx-auto px-8 py-12">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
+          <p className="text-muted-foreground">Manage your account settings and preferences.</p>
+        </div>
 
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* Profile Section */}
-          <div className="bg-white rounded-lg border border-notion p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <User className="w-5 h-5" />
-              Profile
-            </h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Display Name
-                </label>
-                <input
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="w-5 h-5" />
+                Profile
+              </CardTitle>
+              <CardDescription>
+                Update your profile information and preferences.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Display Name</Label>
+                <Input
+                  id="name"
                   type="text"
                   placeholder="Your Name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
                   type="email"
                   placeholder="your.email@example.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted-foreground">
                   Email cannot be changed
                 </p>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Appearance Section */}
-          <div className="bg-white rounded-lg border border-notion p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Appearance</h2>
-            <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Appearance</CardTitle>
+              <CardDescription>
+                Customize the look and feel of your workspace.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium text-gray-900">Theme</h3>
-                  <p className="text-sm text-gray-600">
-                    Choose between light and dark mode
+                <div className="space-y-0.5">
+                  <Label className="text-base font-medium">Dark Mode</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Toggle between light and dark theme
                   </p>
                 </div>
-                <button
-                  onClick={handleToggleDarkMode}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    darkMode ? 'bg-blue-600' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      darkMode ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
+                <Switch
+                  checked={darkMode}
+                  onCheckedChange={handleToggleDarkMode}
+                />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Sun className="w-4 h-4" />
-                    <span className="font-medium">Light</span>
-                  </div>
-                  <div className="bg-white border rounded p-2">
-                    <div className="h-2 bg-gray-100 rounded mb-1"></div>
-                    <div className="h-2 bg-gray-100 rounded w-3/4"></div>
-                  </div>
-                </div>
-                
-                <div className="p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Moon className="w-4 h-4" />
-                    <span className="font-medium">Dark</span>
-                  </div>
-                  <div className="bg-gray-800 border border-gray-600 rounded p-2">
-                    <div className="h-2 bg-gray-600 rounded mb-1"></div>
-                    <div className="h-2 bg-gray-600 rounded w-3/4"></div>
-                  </div>
+              <Separator />
+              
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Theme Preview</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <Card className="cursor-pointer hover:border-primary transition-colors">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sun className="w-4 h-4" />
+                        <span className="font-medium">Light</span>
+                      </div>
+                      <div className="bg-background border rounded p-2">
+                        <div className="h-2 bg-muted rounded mb-1"></div>
+                        <div className="h-2 bg-muted rounded w-3/4"></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="cursor-pointer hover:border-primary transition-colors">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Moon className="w-4 h-4" />
+                        <span className="font-medium">Dark</span>
+                      </div>
+                      <div className="bg-slate-800 border border-slate-600 rounded p-2">
+                        <div className="h-2 bg-slate-600 rounded mb-1"></div>
+                        <div className="h-2 bg-slate-600 rounded w-3/4"></div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Integrations Section */}
-          <div className="bg-white rounded-lg border border-notion p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Integrations</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+          <Card>
+            <CardHeader>
+              <CardTitle>Integrations</CardTitle>
+              <CardDescription>
+                Connect external services to enhance your workflow.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center gap-3">
-                  <Github className="w-6 h-6" />
+                  <div className="p-2 bg-primary/10 rounded-md">
+                    <Github className="w-5 h-5 text-primary" />
+                  </div>
                   <div>
-                    <h3 className="font-medium text-gray-900">GitHub</h3>
-                    <p className="text-sm text-gray-600">
+                    <h3 className="font-medium">GitHub</h3>
+                    <p className="text-sm text-muted-foreground">
                       Sync your documents to GitHub repositories
                     </p>
                   </div>
                 </div>
-                <button className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
+                <Button variant="outline">
                   Connect
-                </button>
+                </Button>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Danger Zone */}
-          <div className="bg-white rounded-lg border border-red-200 p-6">
-            <h2 className="text-xl font-semibold text-red-900 mb-4 flex items-center gap-2">
-              <Trash2 className="w-5 h-5" />
-              Danger Zone
-            </h2>
-            <div className="space-y-4">
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="text-destructive flex items-center gap-2">
+                <Trash2 className="w-5 h-5" />
+                Danger Zone
+              </CardTitle>
+              <CardDescription>
+                Irreversible and destructive actions.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-medium text-gray-900">Sign Out</h3>
-                  <p className="text-sm text-gray-600">
+                  <h3 className="font-medium">Sign Out</h3>
+                  <p className="text-sm text-muted-foreground">
                     Sign out of your account
                   </p>
                 </div>
-                <button
+                <Button
+                  variant="destructive"
                   onClick={handleSignOut}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Sign Out
-                </button>
+                </Button>
               </div>
               
-              <div className="flex items-center justify-between pt-4 border-t border-red-200">
+              <Separator />
+              
+              <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-medium text-red-900">Delete Account</h3>
-                  <p className="text-sm text-gray-600">
+                  <h3 className="font-medium text-destructive">Delete Account</h3>
+                  <p className="text-sm text-muted-foreground">
                     Permanently delete your account and all data
                   </p>
                 </div>
-                <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                <Button variant="destructive">
                   Delete Account
-                </button>
+                </Button>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

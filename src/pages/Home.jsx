@@ -1,7 +1,10 @@
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
-import { Plus, File, Clock } from 'lucide-react'
+import { Plus, File, Clock, Folder, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 
 export default function Home() {
   const workspaces = useQuery(api.workspaces.getWorkspaces)
@@ -43,90 +46,127 @@ export default function Home() {
   if (!workspaces) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
 
   return (
-    <div className="h-full bg-white">
-      <div className="max-w-4xl mx-auto px-8 py-12">
+    <div className="h-full bg-background">
+      <div className="max-w-6xl mx-auto px-8 py-12">
         <div className="mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          <h1 className="text-4xl font-bold text-foreground mb-4">
             Good morning! 👋
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-muted-foreground">
             Welcome to your personal workspace. What would you like to work on today?
           </p>
         </div>
 
         {workspaces.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="mb-6">
-              <File className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                No workspaces yet
-              </h3>
-              <p className="text-gray-600">
-                Create your first workspace to get started with organizing your documents.
-              </p>
-            </div>
-            <button
-              onClick={handleCreateWorkspace}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Create First Workspace
-            </button>
-          </div>
+          <Card className="text-center py-12">
+            <CardContent className="pt-6">
+              <div className="mb-6">
+                <Folder className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <CardTitle className="text-xl mb-2">
+                  No workspaces yet
+                </CardTitle>
+                <CardDescription className="text-base">
+                  Create your first workspace to get started with organizing your documents.
+                </CardDescription>
+              </div>
+              <Button
+                onClick={handleCreateWorkspace}
+                size="lg"
+                className="mt-4"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create First Workspace
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
-          <div className="grid gap-6">
+          <div className="grid gap-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-semibold text-gray-900">Quick Actions</h2>
-              <button
+              <h2 className="text-2xl font-semibold text-foreground">Quick Actions</h2>
+              <Button
                 onClick={handleCreateDocument}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 New Page
-              </button>
+              </Button>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div
+              <Card
                 onClick={handleCreateDocument}
-                className="p-6 border-2 border-dashed border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition-colors"
+                className="border-2 border-dashed hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
               >
-                <Plus className="w-8 h-8 text-gray-400 mb-3" />
-                <h3 className="font-medium text-gray-900 mb-1">Blank Page</h3>
-                <p className="text-sm text-gray-600">Start with a blank canvas</p>
-              </div>
+                <CardContent className="p-6">
+                  <Plus className="w-8 h-8 text-muted-foreground mb-3" />
+                  <CardTitle className="text-base mb-1">Blank Page</CardTitle>
+                  <CardDescription>Start with a blank canvas</CardDescription>
+                </CardContent>
+              </Card>
 
-              <div className="p-6 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                <File className="w-8 h-8 text-blue-600 mb-3" />
-                <h3 className="font-medium text-gray-900 mb-1">Meeting Notes</h3>
-                <p className="text-sm text-gray-600">Template for meeting notes</p>
-              </div>
+              <Card className="hover:bg-muted/50 cursor-pointer transition-colors">
+                <CardContent className="p-6">
+                  <File className="w-8 h-8 text-blue-600 mb-3" />
+                  <CardTitle className="text-base mb-1">Meeting Notes</CardTitle>
+                  <CardDescription>Template for meeting notes</CardDescription>
+                  <Badge variant="secondary" className="mt-2 text-xs">Template</Badge>
+                </CardContent>
+              </Card>
 
-              <div className="p-6 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                <Clock className="w-8 h-8 text-green-600 mb-3" />
-                <h3 className="font-medium text-gray-900 mb-1">Daily Journal</h3>
-                <p className="text-sm text-gray-600">Template for daily journaling</p>
-              </div>
+              <Card className="hover:bg-muted/50 cursor-pointer transition-colors">
+                <CardContent className="p-6">
+                  <Clock className="w-8 h-8 text-green-600 mb-3" />
+                  <CardTitle className="text-base mb-1">Daily Journal</CardTitle>
+                  <CardDescription>Template for daily journaling</CardDescription>
+                  <Badge variant="secondary" className="mt-2 text-xs">Template</Badge>
+                </CardContent>
+              </Card>
             </div>
 
             <div className="mt-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Your Workspaces</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-foreground">Your Workspaces</h2>
+                <Button
+                  variant="outline"
+                  onClick={handleCreateWorkspace}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Workspace
+                </Button>
+              </div>
               <div className="grid gap-4">
                 {workspaces.map(workspace => (
-                  <div
+                  <Card
                     key={workspace._id}
-                    className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="hover:bg-muted/50 transition-colors cursor-pointer"
                   >
-                    <h3 className="font-medium text-gray-900 mb-2">{workspace.name}</h3>
-                    <p className="text-sm text-gray-600">
-                      Created {new Date(workspace.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-primary/10 rounded-md">
+                            <Folder className="w-4 h-4 text-primary" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-base mb-1">{workspace.name}</CardTitle>
+                            <CardDescription>
+                              Created {new Date(workspace.createdAt).toLocaleDateString()}
+                            </CardDescription>
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          <Zap className="w-3 h-3 mr-1" />
+                          Active
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             </div>
