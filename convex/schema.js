@@ -97,4 +97,16 @@ export default defineSchema({
     versionNumber: v.number(),
     createdAt: v.number(),
   }).index("by_document", ["documentId"]),
+
+  files: defineTable({
+    name: v.string(),
+    type: v.string(),
+    size: v.number(),
+    storageId: v.id("_storage"),
+    documentId: v.optional(v.id("documents")),
+    uploadedBy: v.id("users"),
+    uploadedAt: v.number(),
+  })
+    .index("by_document", ["documentId"])
+    .index("by_uploader", ["uploadedBy"]),
 });

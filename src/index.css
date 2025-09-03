@@ -178,6 +178,107 @@
   .dark .bn-editor .ProseMirror pre {
     @apply bg-muted text-foreground border-border;
   }
+  
+  /* Enhanced BlockNote Components Styling */
+  .bn-slash-menu {
+    @apply bg-popover border-border text-popover-foreground;
+    z-index: 1000;
+  }
+  
+  .bn-slash-menu-item {
+    @apply text-popover-foreground hover:bg-accent;
+  }
+  
+  .bn-formatting-toolbar {
+    @apply bg-popover border-border;
+    z-index: 1000;
+  }
+  
+  .bn-formatting-toolbar button {
+    @apply text-popover-foreground hover:bg-accent hover:text-accent-foreground;
+  }
+  
+  .bn-side-menu {
+    @apply text-muted-foreground;
+  }
+  
+  .bn-drag-handle {
+    @apply text-muted-foreground hover:text-foreground;
+  }
+  
+  .bn-drag-handle-menu {
+    @apply bg-popover border-border;
+    z-index: 1000;
+  }
+  
+  .bn-menu-item {
+    @apply text-popover-foreground hover:bg-accent;
+  }
+  
+  /* Table styling */
+  .dark .bn-editor .ProseMirror table {
+    @apply border-border;
+  }
+  
+  .dark .bn-editor .ProseMirror td,
+  .dark .bn-editor .ProseMirror th {
+    @apply border-border text-foreground;
+  }
+  
+  .dark .bn-editor .ProseMirror th {
+    @apply bg-muted font-medium;
+  }
+  
+  /* Image and media blocks */
+  .dark .bn-editor .ProseMirror .bn-file-block,
+  .dark .bn-editor .ProseMirror .bn-image-block,
+  .dark .bn-editor .ProseMirror .bn-video-block,
+  .dark .bn-editor .ProseMirror .bn-audio-block {
+    @apply bg-card border-border;
+  }
+  
+  /* Code block syntax highlighting support */
+  .dark .bn-editor .ProseMirror .hljs {
+    @apply bg-muted text-foreground;
+  }
+  
+  /* Link toolbar */
+  .bn-link-toolbar {
+    @apply bg-popover border-border;
+    z-index: 1000;
+  }
+  
+  .bn-link-toolbar input {
+    @apply bg-background text-foreground border-border;
+  }
+  
+  .bn-link-toolbar button {
+    @apply text-popover-foreground hover:bg-accent;
+  }
+  
+  /* File panel */
+  .bn-file-panel {
+    @apply bg-popover border-border;
+  }
+  
+  /* Table handles */
+  .bn-table-handle {
+    @apply bg-primary text-primary-foreground;
+  }
+  
+  /* Checklist items */
+  .dark .bn-editor .ProseMirror .bn-check-list-item {
+    @apply text-foreground;
+  }
+  
+  .dark .bn-editor .ProseMirror .bn-check-list-item input[type="checkbox"] {
+    @apply border-border;
+  }
+  
+  /* Enhanced focus states */
+  .bn-editor:focus-within {
+    @apply ring-2 ring-ring ring-opacity-50;
+  }
 }
 
 @layer utilities {
