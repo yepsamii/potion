@@ -1,11 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { auth } from "./auth.js";
 
 export const createWorkspace = mutation({
   args: { name: v.string() },
   handler: async (ctx, { name }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const now = Date.now();
@@ -22,7 +22,7 @@ export const createWorkspace = mutation({
 
 export const getWorkspaces = query({
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
     return await ctx.db
@@ -35,7 +35,7 @@ export const getWorkspaces = query({
 export const getWorkspace = query({
   args: { id: v.id("workspaces") },
   handler: async (ctx, { id }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) return null;
 
     const workspace = await ctx.db.get(id);
@@ -51,7 +51,7 @@ export const updateWorkspace = mutation({
     name: v.string(),
   },
   handler: async (ctx, { id, name }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const workspace = await ctx.db.get(id);
@@ -72,7 +72,7 @@ export const addMember = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, { workspaceId, userId: newUserId }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const workspace = await ctx.db.get(workspaceId);
@@ -95,7 +95,7 @@ export const removeMember = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, { workspaceId, userId: memberUserId }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const workspace = await ctx.db.get(workspaceId);

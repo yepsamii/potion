@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { auth } from "./auth.js";
 
 export const createDocument = mutation({
   args: {
@@ -10,7 +10,7 @@ export const createDocument = mutation({
     emoji: v.optional(v.string()),
   },
   handler: async (ctx, { title, workspaceId, parentId, emoji }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const now = Date.now();
@@ -32,7 +32,7 @@ export const createDocument = mutation({
 export const getDocuments = query({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
     return await ctx.db
@@ -47,7 +47,7 @@ export const getDocuments = query({
 export const getDocument = query({
   args: { id: v.id("documents") },
   handler: async (ctx, { id }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) return null;
 
     const document = await ctx.db.get(id);
@@ -66,7 +66,7 @@ export const updateDocument = mutation({
     coverImage: v.optional(v.string()),
   },
   handler: async (ctx, { id, title, content, emoji, coverImage }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const document = await ctx.db.get(id);
@@ -85,7 +85,7 @@ export const updateDocument = mutation({
 export const deleteDocument = mutation({
   args: { id: v.id("documents") },
   handler: async (ctx, { id }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const document = await ctx.db.get(id);
@@ -102,7 +102,7 @@ export const deleteDocument = mutation({
 export const restoreDocument = mutation({
   args: { id: v.id("documents") },
   handler: async (ctx, { id }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     return await ctx.db.patch(id, {
@@ -116,7 +116,7 @@ export const restoreDocument = mutation({
 export const permanentDeleteDocument = mutation({
   args: { id: v.id("documents") },
   handler: async (ctx, { id }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     return await ctx.db.delete(id);
@@ -126,7 +126,7 @@ export const permanentDeleteDocument = mutation({
 export const getDeletedDocuments = query({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
     return await ctx.db
@@ -140,7 +140,7 @@ export const getDeletedDocuments = query({
 export const getChildDocuments = query({
   args: { parentId: v.id("documents") },
   handler: async (ctx, { parentId }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
     return await ctx.db
@@ -154,7 +154,7 @@ export const getChildDocuments = query({
 export const getRootDocuments = query({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
     return await ctx.db

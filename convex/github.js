@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { action, mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { auth } from "./auth.js";
 
 // Store GitHub integration settings
 export const saveGitHubIntegration = mutation({
@@ -11,7 +11,7 @@ export const saveGitHubIntegration = mutation({
     repoUrl: v.optional(v.string()),
   },
   handler: async (ctx, { accessToken, username, repoName, repoUrl }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     // Check if integration already exists
@@ -46,7 +46,7 @@ export const saveGitHubIntegration = mutation({
 // Get user's GitHub integration
 export const getGitHubIntegration = query({
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) return null;
 
     return await ctx.db
@@ -63,7 +63,7 @@ export const syncToGitHub = action({
     commitMessage: v.optional(v.string()),
   },
   handler: async (ctx, { documentId, commitMessage }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     // Get document

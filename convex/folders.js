@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { auth } from "./auth.js";
 
 export const createFolder = mutation({
   args: {
@@ -10,7 +10,7 @@ export const createFolder = mutation({
     emoji: v.optional(v.string()),
   },
   handler: async (ctx, { name, workspaceId, parentId, emoji }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const now = Date.now();
@@ -31,7 +31,7 @@ export const createFolder = mutation({
 export const getFolders = query({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
     return await ctx.db
@@ -45,7 +45,7 @@ export const getFolders = query({
 export const getRootFolders = query({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
     return await ctx.db
@@ -62,7 +62,7 @@ export const getRootFolders = query({
 export const getChildFolders = query({
   args: { parentId: v.id("folders") },
   handler: async (ctx, { parentId }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
     return await ctx.db
@@ -80,7 +80,7 @@ export const updateFolder = mutation({
     emoji: v.optional(v.string()),
   },
   handler: async (ctx, { id, name, emoji }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const folder = await ctx.db.get(id);
@@ -97,7 +97,7 @@ export const updateFolder = mutation({
 export const deleteFolder = mutation({
   args: { id: v.id("folders") },
   handler: async (ctx, { id }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const folder = await ctx.db.get(id);
@@ -114,7 +114,7 @@ export const deleteFolder = mutation({
 export const restoreFolder = mutation({
   args: { id: v.id("folders") },
   handler: async (ctx, { id }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     return await ctx.db.patch(id, {
@@ -128,7 +128,7 @@ export const restoreFolder = mutation({
 export const permanentDeleteFolder = mutation({
   args: { id: v.id("folders") },
   handler: async (ctx, { id }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     return await ctx.db.delete(id);
