@@ -36,9 +36,8 @@ export const getFolders = query({
 
     return await ctx.db
       .query("folders")
-      .withIndex("by_workspace_not_deleted", (q) => 
-        q.eq("workspaceId", workspaceId).eq("isDeleted", false)
-      )
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .filter((q) => q.eq(q.field("isDeleted"), false))
       .collect();
   },
 });
@@ -51,10 +50,11 @@ export const getRootFolders = query({
 
     return await ctx.db
       .query("folders")
-      .withIndex("by_workspace_not_deleted", (q) => 
-        q.eq("workspaceId", workspaceId).eq("isDeleted", false)
-      )
-      .filter((q) => q.eq(q.field("parentId"), undefined))
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .filter((q) => q.and(
+        q.eq(q.field("isDeleted"), false),
+        q.eq(q.field("parentId"), undefined)
+      ))
       .collect();
   },
 });

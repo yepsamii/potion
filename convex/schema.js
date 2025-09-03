@@ -44,8 +44,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
-    .index("by_parent", ["parentId"])
-    .index("by_workspace_not_deleted", ["workspaceId", "isDeleted"]),
+    .index("by_parent", ["parentId"]),
 
   permissions: defineTable({
     documentId: v.id("documents"),

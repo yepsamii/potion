@@ -28,7 +28,7 @@ A comprehensive Notion clone built with React, Vite, Tailwind CSS, and Convex. F
 - **Backend**: Convex (real-time database and serverless functions)
 - **Authentication**: Convex Auth with GitHub OAuth
 - **Editor**: BlockNote (block-based rich text editor)
-- **Icons**: React Icons, Lucide React
+- **Icons**: Lucide React
 - **State Management**: Convex reactive queries + Zustand
 - **Routing**: React Router DOM
 - **Notifications**: React Hot Toast
