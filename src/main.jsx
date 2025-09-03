@@ -1,15 +1,15 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
-import { ConvexProvider, ConvexReactClient } from 'convex/react'
-import { ConvexAuthProvider } from '@convex-dev/auth/react'
-import { Toaster } from 'react-hot-toast'
-import App from './App.jsx'
-import './index.css'
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { Toaster } from "react-hot-toast";
+import App from "./App.jsx";
+import "./index.css";
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL)
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ConvexProvider client={convex}>
       <ConvexAuthProvider client={convex}>
@@ -19,5 +19,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </BrowserRouter>
       </ConvexAuthProvider>
     </ConvexProvider>
-  </React.StrictMode>,
-)
+  </React.StrictMode>
+);

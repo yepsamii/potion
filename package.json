@@ -12,6 +12,7 @@
     "convex:deploy": "convex deploy"
   },
   "dependencies": {
+    "@auth/core": "^0.37.0",
     "@blocknote/core": "^0.12.0",
     "@blocknote/react": "^0.12.0",
     "@convex-dev/auth": "^0.0.50",

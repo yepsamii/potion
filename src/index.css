@@ -29,11 +29,29 @@
   .editor-container {
     @apply max-w-none mx-auto px-24 py-12;
   }
+  
+  .block-editor-container {
+    @apply h-full w-full;
+  }
+  
+  .block-editor {
+    @apply min-h-[600px] w-full;
+  }
+  
+  /* BlockNote Editor Styles */
+  .bn-editor {
+    @apply bg-white;
+  }
+  
+  .bn-block {
+    @apply my-2;
+  }
+  }
 
   .block-editor {
     @apply focus:outline-none;
   }
-}
+
 
 @layer utilities {
   .text-notion {

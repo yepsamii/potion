@@ -6,12 +6,13 @@ import '@blocknote/react/style.css'
 export default function Editor({ 
   content, 
   onChange, 
-  editable = true
+  editable = true,
+  placeholder = "Start writing..."
 }) {
-  const [initialContent, setInitialContent] = useState(null)
+  const [mounted, setMounted] = useState(false)
 
   const editor = useCreateBlockNote({
-    initialContent: initialContent || undefined,
+    initialContent: content && Array.isArray(content) ? content : undefined,
     uploadFile: async (file) => {
       // TODO: Implement file upload to Convex storage
       return `data:${file.type};base64,${await fileToBase64(file)}`
@@ -19,20 +20,20 @@ export default function Editor({
   })
 
   useEffect(() => {
-    if (content && content !== initialContent) {
-      setInitialContent(content)
-      if (editor && Array.isArray(content)) {
-        editor.replaceBlocks(editor.document, content)
+    setMounted(true)
+  }, [])
+
+  const handleChange = useCallback(async () => {
+    if (onChange && editor && mounted) {
+      try {
+        // Get the current blocks from the editor
+        const blocks = editor.topLevelBlocks
+        onChange(blocks)
+      } catch (error) {
+        console.error('Error handling editor change:', error)
       }
     }
-  }, [content, initialContent, editor])
-
-  const handleChange = useCallback(() => {
-    if (onChange && editor) {
-      const blocks = editor.document
-      onChange(blocks)
-    }
-  }, [editor, onChange])
+  }, [editor, onChange, mounted])
 
   const fileToBase64 = (file) => {
     return new Promise((resolve, reject) => {
@@ -43,15 +44,25 @@ export default function Editor({
     })
   }
 
+  if (!mounted || !editor) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
   return (
-    <div className="block-editor-container">
-      <BlockNoteView
-        editor={editor}
-        editable={editable}
-        onChange={handleChange}
-        theme="light"
-        className="block-editor"
-      />
+    <div className="block-editor-container h-full">
+      <div className="max-w-4xl mx-auto px-8 py-8">
+        <BlockNoteView
+          editor={editor}
+          editable={editable}
+          onChange={handleChange}
+          theme="light"
+          className="block-editor min-h-[500px]"
+        />
+      </div>
     </div>
   )
 }

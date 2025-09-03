@@ -25,10 +25,11 @@ export const getWorkspaces = query({
     const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
-    return await ctx.db
-      .query("workspaces")
-      .filter((q) => q.eq(q.field("members").includes(userId), true))
-      .collect();
+    const allWorkspaces = await ctx.db.query("workspaces").collect();
+    
+    return allWorkspaces.filter(workspace => 
+      workspace.members && workspace.members.includes(userId)
+    );
   },
 });
 
