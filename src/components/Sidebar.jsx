@@ -13,6 +13,8 @@ import {
   X,
   LogOut,
   Home,
+  Moon,
+  Sun,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,12 @@ export default function Sidebar({ isOpen, onToggle }) {
   const { signOut } = useAuthActions();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedWorkspace, setSelectedWorkspace] = useState(null);
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("darkMode") === "true" || document.documentElement.classList.contains("dark");
+    }
+    return false;
+  });
 
   const workspaces = useQuery(api.workspaces.getWorkspaces);
 
@@ -77,6 +85,29 @@ export default function Sidebar({ isOpen, onToggle }) {
     }
   };
 
+  const handleToggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    
+    if (newMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    
+    localStorage.setItem("darkMode", newMode.toString());
+    toast.success(`${newMode ? "Dark" : "Light"} mode enabled`);
+  };
+
+  useEffect(() => {
+    // Initialize dark mode on component mount
+    const savedMode = localStorage.getItem("darkMode") === "true";
+    if (savedMode) {
+      document.documentElement.classList.add("dark");
+      setDarkMode(true);
+    }
+  }, []);
+
 
   if (!isOpen) {
     return (
@@ -104,14 +135,25 @@ export default function Sidebar({ isOpen, onToggle }) {
                 Potion
               </h1>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggle}
-              className="lg:hidden h-6 w-6"
-            >
-              <X className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleToggleDarkMode}
+                className="h-6 w-6"
+                title={`Switch to ${darkMode ? "light" : "dark"} mode`}
+              >
+                {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onToggle}
+                className="lg:hidden h-6 w-6"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Search */}

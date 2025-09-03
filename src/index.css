@@ -96,18 +96,89 @@
   
   /* BlockNote Editor Styles */
   .bn-editor {
-    @apply bg-white;
+    @apply bg-background text-foreground;
+  }
+  
+  .dark .bn-editor {
+    @apply bg-background text-foreground;
   }
   
   .bn-block {
     @apply my-2;
   }
-  }
-
+  
   .block-editor {
     @apply focus:outline-none;
   }
-
+  
+  /* BlockNote Dark Mode Overrides */
+  .dark .bn-editor .bn-block-content {
+    @apply text-foreground;
+  }
+  
+  .dark .bn-editor .bn-block-outer {
+    @apply border-border;
+  }
+  
+  .dark .bn-editor .bn-inline-content {
+    @apply text-foreground;
+  }
+  
+  .dark .bn-editor .bn-formatting-toolbar {
+    @apply bg-popover border-border;
+  }
+  
+  .dark .bn-editor .bn-formatting-toolbar button {
+    @apply text-popover-foreground hover:bg-accent;
+  }
+  
+  .dark .bn-editor .bn-slash-menu {
+    @apply bg-popover border-border;
+  }
+  
+  .dark .bn-editor .bn-slash-menu-item {
+    @apply text-popover-foreground hover:bg-accent;
+  }
+  
+  .dark .bn-editor .bn-side-menu {
+    @apply text-muted-foreground;
+  }
+  
+  .dark .bn-editor .ProseMirror {
+    @apply text-foreground;
+  }
+  
+  .dark .bn-editor .ProseMirror p {
+    @apply text-foreground;
+  }
+  
+  .dark .bn-editor .ProseMirror h1,
+  .dark .bn-editor .ProseMirror h2,
+  .dark .bn-editor .ProseMirror h3,
+  .dark .bn-editor .ProseMirror h4,
+  .dark .bn-editor .ProseMirror h5,
+  .dark .bn-editor .ProseMirror h6 {
+    @apply text-foreground;
+  }
+  
+  .dark .bn-editor .ProseMirror ul,
+  .dark .bn-editor .ProseMirror ol,
+  .dark .bn-editor .ProseMirror li {
+    @apply text-foreground;
+  }
+  
+  .dark .bn-editor .ProseMirror blockquote {
+    @apply text-foreground border-l-border;
+  }
+  
+  .dark .bn-editor .ProseMirror code {
+    @apply bg-muted text-foreground;
+  }
+  
+  .dark .bn-editor .ProseMirror pre {
+    @apply bg-muted text-foreground border-border;
+  }
+}
 
 @layer utilities {
   .text-notion {

@@ -10,6 +10,7 @@ export default function Editor({
   placeholder = "Start writing..."
 }) {
   const [mounted, setMounted] = useState(false)
+  const [theme, setTheme] = useState('light')
 
   const editor = useCreateBlockNote({
     initialContent: content && Array.isArray(content) ? content : undefined,
@@ -21,6 +22,27 @@ export default function Editor({
 
   useEffect(() => {
     setMounted(true)
+    
+    // Set initial theme
+    const isDark = document.documentElement.classList.contains('dark')
+    setTheme(isDark ? 'dark' : 'light')
+    
+    // Watch for theme changes
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          const isDark = document.documentElement.classList.contains('dark')
+          setTheme(isDark ? 'dark' : 'light')
+        }
+      })
+    })
+    
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+    
+    return () => observer.disconnect()
   }, [])
 
   const handleChange = useCallback(async () => {
@@ -47,7 +69,7 @@ export default function Editor({
   if (!mounted || !editor) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
@@ -59,7 +81,7 @@ export default function Editor({
           editor={editor}
           editable={editable}
           onChange={handleChange}
-          theme="light"
+          theme={theme}
           className="block-editor min-h-[500px]"
         />
       </div>
