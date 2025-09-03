@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    @apply font-ui-sans-serif;
+    @apply h-full;
+  }
+
+  #root {
+    @apply h-full;
+  }
+
+  * {
+    @apply box-border;
+  }
+}
+
+@layer components {
+  .sidebar-item {
+    @apply flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-notion-gray-100 dark:hover:bg-notion-gray-800 cursor-pointer transition-colors duration-150;
+  }
+
+  .sidebar-item.active {
+    @apply bg-notion-gray-200 dark:bg-notion-gray-700;
+  }
+
+  .editor-container {
+    @apply max-w-none mx-auto px-24 py-12;
+  }
+
+  .block-editor {
+    @apply focus:outline-none;
+  }
+}
+
+@layer utilities {
+  .text-notion {
+    @apply text-gray-700 dark:text-gray-300;
+  }
+
+  .bg-notion {
+    @apply bg-white dark:bg-gray-900;
+  }
+
+  .border-notion {
+    @apply border-notion-gray-200 dark:border-notion-gray-700;
+  }
+}
