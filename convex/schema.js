@@ -19,7 +19,8 @@ export default defineSchema({
     workspaceId: v.id("workspaces"),
     parentId: v.optional(v.id("documents")), // For hierarchical structure
     folderId: v.optional(v.id("folders")), // For folder organization
-    authorId: v.id("users"),
+    authorId: v.id("users"), // Creator
+    lastEditedBy: v.optional(v.id("users")), // Last person who edited
     isDeleted: v.optional(v.boolean()),
     deletedAt: v.optional(v.number()),
     emoji: v.optional(v.string()),

@@ -574,15 +574,22 @@ export default function FolderTree({
               {doc.emoji || "📄"}
             </span>
           </span>
-          <span
-            className={`truncate flex-1 font-medium text-sm transition-all duration-200 ${
-              isSelected
-                ? "text-blue-900 dark:text-blue-100"
-                : "text-gray-700 dark:text-gray-300"
-            }`}
-          >
-            {doc.title}
-          </span>
+          <div className="flex-1 min-w-0">
+            <span
+              className={`truncate block font-medium text-sm transition-all duration-200 ${
+                isSelected
+                  ? "text-blue-900 dark:text-blue-100"
+                  : "text-gray-700 dark:text-gray-300"
+              }`}
+            >
+              {doc.title}
+            </span>
+            {doc.author && (
+              <span className="text-xs text-muted-foreground truncate block">
+                by {doc.author.name}
+              </span>
+            )}
+          </div>
           {isSelected && (
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full flex-shrink-0 animate-pulse" />

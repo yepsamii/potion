@@ -5,7 +5,7 @@ import { api } from '../../convex/_generated/api'
 import Editor from '../components/Editor'
 import { 
   MoreHorizontal, Trash2, Share2, Star, 
-  Github, Clock, Hash
+  Github, Clock
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Button } from "@/components/ui/button"
@@ -37,7 +37,6 @@ export default function DocumentView() {
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [showLineNumbers, setShowLineNumbers] = useState(true)
 
   const document = useQuery(api.documents.getDocument, { id })
   const updateDocument = useMutation(api.documents.updateDocument)
@@ -246,10 +245,6 @@ export default function DocumentView() {
                   Version history
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setShowLineNumbers(!showLineNumbers)}>
-                  <Hash className="mr-2 h-4 w-4" />
-                  {showLineNumbers ? 'Hide' : 'Show'} line numbers
-                </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Share2 className="mr-2 h-4 w-4" />
                   Share
@@ -272,11 +267,16 @@ export default function DocumentView() {
       {/* Document Info */}
       <div className="px-8 py-2 border-b border-border">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Last edited {new Date(document.updatedAt).toLocaleString()}
-          </p>
+          <div className="flex items-center gap-6">
+            <p className="text-sm text-muted-foreground">
+              Created by <span className="font-medium">{document.author?.name || 'Unknown'}</span> on {new Date(document.createdAt).toLocaleDateString()}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Last edited by <span className="font-medium">{document.lastEditor?.name || document.author?.name || 'Unknown'}</span> on {new Date(document.updatedAt).toLocaleString()}
+            </p>
+          </div>
           <Badge variant="secondary" className="text-xs">
-            Draft
+            Shared
           </Badge>
         </div>
       </div>
@@ -287,7 +287,6 @@ export default function DocumentView() {
           content={document.content}
           onChange={handleContentChange}
           placeholder="Start writing..."
-          showLineNumbers={showLineNumbers}
         />
       </div>
 

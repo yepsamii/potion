@@ -119,19 +119,6 @@ export default function Settings() {
                 </Button>
               </div>
               
-              <Separator />
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium text-destructive">Delete Account</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Permanently delete your account and all data
-                  </p>
-                </div>
-                <Button variant="destructive">
-                  Delete Account
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </div>

@@ -37,12 +37,29 @@ export const getDocuments = query({
     const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
-    return await ctx.db
+    // Get all documents and populate user info for creator and last editor
+    const documents = await ctx.db
       .query("documents")
       .withIndex("by_workspace_not_deleted", (q) => 
         q.eq("workspaceId", workspaceId).eq("isDeleted", false)
       )
       .collect();
+
+    // Populate user information for each document
+    const documentsWithUsers = await Promise.all(
+      documents.map(async (doc) => {
+        const author = await ctx.db.get(doc.authorId);
+        const lastEditor = doc.lastEditedBy ? await ctx.db.get(doc.lastEditedBy) : null;
+        
+        return {
+          ...doc,
+          author: author ? { id: author._id, name: author.name, email: author.email } : null,
+          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email } : null,
+        };
+      })
+    );
+
+    return documentsWithUsers;
   },
 });
 
@@ -55,7 +72,15 @@ export const getDocument = query({
     const document = await ctx.db.get(id);
     if (!document || document.isDeleted) return null;
 
-    return document;
+    // Populate user information
+    const author = await ctx.db.get(document.authorId);
+    const lastEditor = document.lastEditedBy ? await ctx.db.get(document.lastEditedBy) : null;
+
+    return {
+      ...document,
+      author: author ? { id: author._id, name: author.name, email: author.email } : null,
+      lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email } : null,
+    };
   },
 });
 
@@ -74,7 +99,10 @@ export const updateDocument = mutation({
     const document = await ctx.db.get(id);
     if (!document || document.isDeleted) throw new Error("Document not found");
 
-    const updates = { updatedAt: Date.now() };
+    const updates = { 
+      updatedAt: Date.now(),
+      lastEditedBy: userId // Track who last edited the document
+    };
     if (title !== undefined) updates.title = title;
     if (content !== undefined) updates.content = content;
     if (emoji !== undefined) updates.emoji = emoji;
@@ -190,13 +218,29 @@ export const getRootDocuments = query({
     const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
-    return await ctx.db
+    const documents = await ctx.db
       .query("documents")
       .withIndex("by_workspace_not_deleted", (q) => 
         q.eq("workspaceId", workspaceId).eq("isDeleted", false)
       )
       .filter((q) => q.eq(q.field("folderId"), undefined))
       .collect();
+
+    // Populate user information for each document
+    const documentsWithUsers = await Promise.all(
+      documents.map(async (doc) => {
+        const author = await ctx.db.get(doc.authorId);
+        const lastEditor = doc.lastEditedBy ? await ctx.db.get(doc.lastEditedBy) : null;
+        
+        return {
+          ...doc,
+          author: author ? { id: author._id, name: author.name, email: author.email } : null,
+          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email } : null,
+        };
+      })
+    );
+
+    return documentsWithUsers;
   },
 });
 
@@ -206,11 +250,27 @@ export const getDocumentsByFolder = query({
     const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
-    return await ctx.db
+    const documents = await ctx.db
       .query("documents")
       .withIndex("by_folder", (q) => q.eq("folderId", folderId))
       .filter((q) => q.eq(q.field("isDeleted"), false))
       .collect();
+
+    // Populate user information for each document
+    const documentsWithUsers = await Promise.all(
+      documents.map(async (doc) => {
+        const author = await ctx.db.get(doc.authorId);
+        const lastEditor = doc.lastEditedBy ? await ctx.db.get(doc.lastEditedBy) : null;
+        
+        return {
+          ...doc,
+          author: author ? { id: author._id, name: author.name, email: author.email } : null,
+          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email } : null,
+        };
+      })
+    );
+
+    return documentsWithUsers;
   },
 });
 
@@ -233,8 +293,24 @@ export const searchDocuments = query({
       .collect();
 
     // Filter documents by title match (case insensitive)
-    return documents.filter(doc => 
+    const filteredDocuments = documents.filter(doc => 
       doc.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    // Populate user information for each document
+    const documentsWithUsers = await Promise.all(
+      filteredDocuments.map(async (doc) => {
+        const author = await ctx.db.get(doc.authorId);
+        const lastEditor = doc.lastEditedBy ? await ctx.db.get(doc.lastEditedBy) : null;
+        
+        return {
+          ...doc,
+          author: author ? { id: author._id, name: author.name, email: author.email } : null,
+          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email } : null,
+        };
+      })
+    );
+
+    return documentsWithUsers;
   },
 });
