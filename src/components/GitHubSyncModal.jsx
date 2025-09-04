@@ -30,8 +30,8 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
   const [customPath, setCustomPath] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  // Get enabled repositories
-  const enabledRepositories = useQuery(api.github.getGitHubRepositories, { onlyEnabled: true })
+  // Get user repository access (repositories with personal access tokens)
+  const userRepositoryAccess = useQuery(api.github.getUserRepositoryAccess)
   const syncToRepository = useAction(api.github.syncDocumentToRepository)
 
   const handleSync = async () => {
@@ -79,7 +79,8 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
     }
   }
 
-  const selectedRepo = enabledRepositories?.find(repo => repo._id === selectedRepository)
+  const selectedAccess = userRepositoryAccess?.find(access => access.repositoryId === selectedRepository)
+  const selectedRepo = selectedAccess?.repository
 
   // Generate default file path
   const defaultPath = document ? 
@@ -105,27 +106,22 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
           {/* Repository Selection */}
           <div className="space-y-2">
             <Label htmlFor="repository">Select Repository</Label>
-            {enabledRepositories && enabledRepositories.length > 0 ? (
+            {userRepositoryAccess && userRepositoryAccess.length > 0 ? (
               <Select value={selectedRepository} onValueChange={setSelectedRepository}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a repository..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {enabledRepositories.map((repo) => (
-                    <SelectItem key={repo._id} value={repo._id}>
+                  {userRepositoryAccess
+                    .filter(access => access.hasAccess && access.accessLevel !== "read")
+                    .map((access) => (
+                    <SelectItem key={access.repositoryId} value={access.repositoryId}>
                       <div className="flex items-center gap-2 w-full">
-                        {repo.isPrivate ? (
-                          <Lock className="w-4 h-4 text-orange-600" />
-                        ) : (
-                          <Unlock className="w-4 h-4 text-green-600" />
-                        )}
-                        <span className="font-medium">{repo.fullName}</span>
+                        <span className="font-medium">{access.repository.owner}/{access.repository.repoName}</span>
                         <div className="flex items-center gap-1 ml-auto">
-                          {repo.permissions.admin && (
-                            <Badge variant="outline" className="text-xs">Admin</Badge>
-                          )}
-                          {repo.permissions.push && !repo.permissions.admin && (
-                            <Badge variant="outline" className="text-xs">Push</Badge>
+                          <Badge variant="outline" className="text-xs">{access.accessLevel}</Badge>
+                          {access.hasAccess && (
+                            <CheckCircle className="w-3 h-3 text-green-600" />
                           )}
                         </div>
                       </div>
@@ -137,10 +133,10 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
               <div className="p-4 border border-amber-200 bg-amber-50 dark:bg-amber-950/20 rounded-lg">
                 <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
                   <AlertTriangle className="w-4 h-4" />
-                  <span className="text-sm font-medium">No enabled repositories</span>
+                  <span className="text-sm font-medium">No repositories available for syncing</span>
                 </div>
                 <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                  Go to Settings → GitHub Integration to enable repositories for syncing.
+                  Go to Settings → GitHub Integration to add repositories and configure access tokens.
                 </p>
               </div>
             )}
@@ -152,10 +148,10 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle className="w-4 h-4 text-green-600" />
                 <span className="font-medium text-green-900 dark:text-green-100">
-                  {selectedRepo.fullName}
+                  {selectedRepo.owner}/{selectedRepo.repoName}
                 </span>
                 <a
-                  href={selectedRepo.htmlUrl}
+                  href={selectedRepo.repoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-green-600 hover:text-green-800"
@@ -163,16 +159,13 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
                   <ExternalLink className="w-4 h-4" />
                 </a>
               </div>
-              <p className="text-sm text-green-700 dark:text-green-300">
-                {selectedRepo.description || 'No description available'}
-              </p>
               <div className="flex items-center gap-2 mt-2">
                 <Badge variant="outline" className="text-xs">
-                  {selectedRepo.defaultBranch}
+                  {selectedAccess?.accessLevel} access
                 </Badge>
-                {selectedRepo.lastSyncedAt && (
+                {selectedAccess?.lastSyncedAt && (
                   <span className="text-xs text-green-600">
-                    Last synced: {new Date(selectedRepo.lastSyncedAt).toLocaleDateString()}
+                    Last synced: {new Date(selectedAccess.lastSyncedAt).toLocaleDateString()}
                   </span>
                 )}
               </div>
@@ -212,8 +205,8 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
                 Sync Preview
               </h4>
               <div className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-                <p><strong>Repository:</strong> {selectedRepo?.fullName}</p>
-                <p><strong>Branch:</strong> {selectedRepo?.defaultBranch}</p>
+                <p><strong>Repository:</strong> {selectedRepo?.owner}/{selectedRepo?.repoName}</p>
+                <p><strong>Branch:</strong> main</p>
                 <p><strong>File:</strong> {finalPath}</p>
                 <p><strong>Message:</strong> {commitMessage.trim() || `Update: ${document?.title}`}</p>
               </div>

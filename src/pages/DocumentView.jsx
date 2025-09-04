@@ -52,8 +52,8 @@ export default function DocumentView() {
   const deleteDocument = useMutation(api.documents.deleteDocument)
   
   // GitHub integration
-  const githubIntegration = useQuery(api.github.getGitHubIntegration)
-  const enabledRepositories = useQuery(api.github.getGitHubRepositories, { onlyEnabled: true })
+  const githubProfile = useQuery(api.github.getGitHubProfile)
+  const userRepositoryAccess = useQuery(api.github.getUserRepositoryAccess)
 
   useEffect(() => {
     if (document) {
@@ -223,12 +223,12 @@ export default function DocumentView() {
               size="icon"
               className="h-8 w-8"
               onClick={() => setShowGitHubSync(true)}
-              disabled={!githubIntegration || !enabledRepositories?.length}
+              disabled={!githubProfile || !userRepositoryAccess?.length}
               title={
-                !githubIntegration 
+                !githubProfile 
                   ? 'Connect GitHub in Settings first'
-                  : !enabledRepositories?.length
-                  ? 'Enable repositories in Settings first'
+                  : !userRepositoryAccess?.length
+                  ? 'Add repository access tokens in Settings first'
                   : 'Sync to GitHub repository'
               }
             >
@@ -260,7 +260,7 @@ export default function DocumentView() {
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => setShowGitHubSync(true)}
-                  disabled={!githubIntegration || !enabledRepositories?.length}
+                  disabled={!githubProfile || !userRepositoryAccess?.length}
                 >
                   <Github className="mr-2 h-4 w-4" />
                   Sync to GitHub

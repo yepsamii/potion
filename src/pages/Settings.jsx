@@ -31,14 +31,17 @@ export default function Settings() {
   const [repoUrl, setRepoUrl] = useState('')
   const [accessToken, setAccessToken] = useState('')
   const [showRepoForm, setShowRepoForm] = useState(false)
+  const [showTokenForm, setShowTokenForm] = useState('')
   
   // GitHub integration queries and mutations
   const githubProfile = useQuery(api.github.getGitHubProfile)
-  const repoConnections = useQuery(api.github.getGitHubRepoConnections)
+  const globalRepositories = useQuery(api.github.getGlobalRepositories)
+  const userRepositoryAccess = useQuery(api.github.getUserRepositoryAccess)
   const connectProfile = useMutation(api.github.connectGitHubProfile)
-  const connectRepository = useMutation(api.github.connectGitRepository)
-  const checkAccess = useAction(api.github.checkRepositoryAccess)
-  const removeConnection = useMutation(api.github.removeRepoConnection)
+  const addGlobalRepository = useMutation(api.github.addGlobalRepository)
+  const addUserAccessToken = useMutation(api.github.addUserAccessToken)
+  const checkUserAccess = useAction(api.github.checkUserRepositoryAccess)
+  const removeUserAccess = useMutation(api.github.removeUserAccess)
   const disconnectProfile = useMutation(api.github.disconnectGitHubProfile)
 
   const handleSignOut = async () => {
@@ -66,31 +69,49 @@ export default function Settings() {
     }
   }
 
-  // STEP 2: Connect Repository
-  const handleConnectRepo = async () => {
-    if (!repoUrl.trim() || !accessToken.trim()) {
-      toast.error('Please provide both repository URL and access token')
+  // STEP 2: Add Global Repository
+  const handleAddGlobalRepo = async () => {
+    if (!repoUrl.trim()) {
+      toast.error('Please provide repository URL')
       return
     }
 
     try {
-      await connectRepository({ 
-        repoUrl: repoUrl.trim(), 
-        accessToken: accessToken.trim() 
+      await addGlobalRepository({ 
+        repoUrl: repoUrl.trim()
       })
-      toast.success('Repository connection added successfully!')
+      toast.success('Repository added to global registry!')
       setRepoUrl('')
-      setAccessToken('')
       setShowRepoForm(false)
     } catch (error) {
-      toast.error(`Failed to connect repository: ${error.message}`)
+      toast.error(`Failed to add repository: ${error.message}`)
     }
   }
 
-  // STEP 3: Check Repository Access
-  const handleCheckAccess = async (connectionId) => {
+  // STEP 3: Add User Access Token
+  const handleAddAccessToken = async (repositoryId) => {
+    if (!accessToken.trim()) {
+      toast.error('Please provide access token')
+      return
+    }
+
     try {
-      const result = await checkAccess({ connectionId })
+      await addUserAccessToken({ 
+        repositoryId, 
+        accessToken: accessToken.trim() 
+      })
+      toast.success('Access token added successfully!')
+      setAccessToken('')
+      setShowTokenForm('')
+    } catch (error) {
+      toast.error(`Failed to add access token: ${error.message}`)
+    }
+  }
+
+  // STEP 4: Check User Repository Access
+  const handleCheckUserAccess = async (repositoryId) => {
+    try {
+      const result = await checkUserAccess({ repositoryId })
       if (result.success) {
         toast.success(result.message)
       } else {
@@ -101,13 +122,13 @@ export default function Settings() {
     }
   }
 
-  // Remove repository connection
-  const handleRemoveConnection = async (connectionId) => {
+  // Remove user access to repository
+  const handleRemoveUserAccess = async (repositoryId) => {
     try {
-      await removeConnection({ connectionId })
-      toast.success('Repository connection removed')
+      await removeUserAccess({ repositoryId })
+      toast.success('Repository access removed')
     } catch (error) {
-      toast.error(`Failed to remove connection: ${error.message}`)
+      toast.error(`Failed to remove access: ${error.message}`)
     }
   }
 
@@ -192,7 +213,7 @@ export default function Settings() {
                 GitHub Integration
               </CardTitle>
               <CardDescription>
-                Connect your GitHub profile and repositories using our 3-step process.
+                Connect your GitHub profile and repositories using our 4-step process for global repository sharing.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -236,158 +257,235 @@ export default function Settings() {
                 )}
               </div>
 
-              {/* STEP 2: Connect Repository */}
+              {/* STEP 2: Add Global Repository */}
               <div className="border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm flex items-center justify-center font-medium">2</div>
-                    <h3 className="font-medium">Connect Repository</h3>
+                    <h3 className="font-medium">Add Repository to Global Registry</h3>
                   </div>
-                  {githubProfile && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowRepoForm(!showRepoForm)}
-                      className="gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Repository
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowRepoForm(!showRepoForm)}
+                    className="gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Repository
+                  </Button>
                 </div>
 
-                {!githubProfile ? (
-                  <p className="text-sm text-muted-foreground">Complete step 1 first to enable repository connections.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {showRepoForm && (
-                      <div className="p-4 bg-muted/30 rounded-lg space-y-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="repoUrl">Repository URL</Label>
-                          <Input
-                            id="repoUrl"
-                            placeholder="https://github.com/owner/repo"
-                            value={repoUrl}
-                            onChange={(e) => setRepoUrl(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="accessToken">Personal Access Token</Label>
-                          <Input
-                            id="accessToken"
-                            type="password"
-                            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                            value={accessToken}
-                            onChange={(e) => setAccessToken(e.target.value)}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Create a token at GitHub.com → Settings → Developer settings → Personal access tokens
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button onClick={handleConnectRepo} className="flex-1">
-                            Connect Repository
-                          </Button>
-                          <Button variant="outline" onClick={() => setShowRepoForm(false)}>
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Connected Repositories List */}
-                    {repoConnections && repoConnections.length > 0 && (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">Add repositories to the global registry visible to all users.</p>
+                  
+                  {showRepoForm && (
+                    <div className="p-4 bg-muted/30 rounded-lg space-y-3">
                       <div className="space-y-2">
-                        {repoConnections.map((connection) => (
-                          <div key={connection._id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                            <div>
-                              <div className="font-medium text-sm">{connection.owner}/{connection.repoName}</div>
-                              <div className="text-xs text-muted-foreground">{connection.repoUrl}</div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <a
-                                href={connection.repoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-muted-foreground hover:text-foreground"
-                              >
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => handleRemoveConnection(connection._id)}
-                              >
-                                Remove
-                              </Button>
+                        <Label htmlFor="repoUrl">Repository URL</Label>
+                        <Input
+                          id="repoUrl"
+                          placeholder="https://github.com/owner/repo"
+                          value={repoUrl}
+                          onChange={(e) => setRepoUrl(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          This repository will be visible to all users, but they need their own access tokens to use it.
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button onClick={handleAddGlobalRepo} className="flex-1">
+                          Add to Global Registry
+                        </Button>
+                        <Button variant="outline" onClick={() => setShowRepoForm(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Global Repositories List */}
+                  {globalRepositories && globalRepositories.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium">Global Repository Registry</h4>
+                      {globalRepositories.map((repo) => (
+                        <div key={repo._id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                          <div>
+                            <div className="font-medium text-sm">{repo.owner}/{repo.repoName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Added by {repo.addedByUser?.name || 'Unknown'} • {repo.isActive ? 'Active' : 'Inactive'}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={repo.repoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-                    {(!repoConnections || repoConnections.length === 0) && !showRepoForm && (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No repositories connected yet. Click "Add Repository" to get started.
-                      </p>
-                    )}
-                  </div>
-                )}
+                  {(!globalRepositories || globalRepositories.length === 0) && !showRepoForm && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No repositories in global registry yet. Be the first to add one!
+                    </p>
+                  )}
+                </div>
               </div>
 
-              {/* STEP 3: Check Access */}
+              {/* STEP 3: Add Personal Access Token */}
               <div className="border rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm flex items-center justify-center font-medium">3</div>
-                  <h3 className="font-medium">Verify Repository Access</h3>
+                  <h3 className="font-medium">Add Personal Access Token</h3>
                 </div>
 
-                {!repoConnections || repoConnections.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Complete steps 1 & 2 to verify repository access.</p>
+                {!globalRepositories || globalRepositories.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Complete step 2 to add your personal access tokens.</p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                      Check access permissions for your connected repositories:
+                      Add your personal access tokens to repositories you want to sync documents to.
                     </p>
                     
                     <div className="space-y-2">
-                      {repoConnections.map((connection) => (
-                        <div key={connection._id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex items-center gap-3">
+                      {globalRepositories.map((repo) => {
+                        const userAccessData = userRepositoryAccess?.find(item => item._id === repo._id);
+                        const hasToken = userAccessData?.userAccess?.hasToken;
+                        return (
+                          <div key={repo._id} className="flex items-center justify-between p-3 border rounded-lg">
                             <div>
-                              <div className="font-medium text-sm">{connection.owner}/{connection.repoName}</div>
+                              <div className="font-medium text-sm">{repo.owner}/{repo.repoName}</div>
                               <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                {connection.hasAccess === true ? (
+                                {hasToken ? (
                                   <>
                                     <CheckCircle className="w-3 h-3 text-green-600" />
-                                    <span className="text-green-600">Access verified - {connection.accessLevel}</span>
-                                  </>
-                                ) : connection.hasAccess === false ? (
-                                  <>
-                                    <XCircle className="w-3 h-3 text-red-600" />
-                                    <span className="text-red-600">Access denied</span>
+                                    <span className="text-green-600">Token configured</span>
                                   </>
                                 ) : (
                                   <>
                                     <AlertTriangle className="w-3 h-3 text-amber-600" />
-                                    <span className="text-amber-600">Not checked yet</span>
+                                    <span className="text-amber-600">No token configured</span>
                                   </>
                                 )}
                               </div>
                             </div>
+                            
+                            <div className="flex items-center gap-2">
+                              {!hasToken && showTokenForm === repo._id ? (
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    type="password"
+                                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                                    value={accessToken}
+                                    onChange={(e) => setAccessToken(e.target.value)}
+                                    className="w-48"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleAddAccessToken(repo._id)}
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowTokenForm('')}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              ) : !hasToken ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setShowTokenForm(repo._id)}
+                                >
+                                  Add Token
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleRemoveUserAccess(repo._id)}
+                                >
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
                           </div>
-                          
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleCheckAccess(connection._id)}
-                            className="gap-2"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            Check Access
-                          </Button>
-                        </div>
-                      ))}
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* STEP 4: Verify Repository Access */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm flex items-center justify-center font-medium">4</div>
+                  <h3 className="font-medium">Verify Repository Access</h3>
+                </div>
+
+                {!userRepositoryAccess || userRepositoryAccess.filter(item => item.userAccess?.hasToken).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Complete step 3 to verify your repository access.</p>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Verify your personal access to repositories with configured tokens:
+                    </p>
+                    
+                    <div className="space-y-2">
+                      {userRepositoryAccess
+                        .filter(item => item.userAccess?.hasToken)
+                        .map((item) => {
+                        return (
+                          <div key={item._id} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <div>
+                                <div className="font-medium text-sm">{item.owner}/{item.repoName}</div>
+                                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                  {item.userAccess.hasAccess === true ? (
+                                    <>
+                                      <CheckCircle className="w-3 h-3 text-green-600" />
+                                      <span className="text-green-600">Access verified - {item.userAccess.accessLevel}</span>
+                                      {item.userAccess.lastChecked && (
+                                        <span className="text-muted-foreground">• Checked {new Date(item.userAccess.lastChecked).toLocaleDateString()}</span>
+                                      )}
+                                    </>
+                                  ) : item.userAccess.hasAccess === false ? (
+                                    <>
+                                      <XCircle className="w-3 h-3 text-red-600" />
+                                      <span className="text-red-600">Access denied</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                      <span className="text-amber-600">Not verified yet</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCheckUserAccess(item._id)}
+                              className="gap-2"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              Check Access
+                            </Button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

@@ -3,7 +3,7 @@ import { action, mutation, query } from "./_generated/server";
 import { api } from "./_generated/api.js";
 import { auth } from "./auth.js";
 
-// STEP 1: Connect GitHub Profile
+// STEP 1: Connect GitHub Profile (unchanged)
 export const connectGitHubProfile = mutation({
   args: {
     username: v.string(),
@@ -52,13 +52,12 @@ export const getGitHubProfile = query({
   },
 });
 
-// STEP 2: Connect Git Repository
-export const connectGitRepository = mutation({
+// STEP 2: Add Repository to Global Registry
+export const addGlobalRepository = mutation({
   args: {
     repoUrl: v.string(),
-    accessToken: v.string(),
   },
-  handler: async (ctx, { repoUrl, accessToken }) => {
+  handler: async (ctx, { repoUrl }) => {
     const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
@@ -71,84 +70,173 @@ export const connectGitRepository = mutation({
     const owner = repoMatch[1];
     const repoName = repoMatch[2].replace('.git', ''); // Remove .git if present
 
-    // Check if this repo connection already exists
+    // Check if this repo already exists in global registry
     const existing = await ctx.db
-      .query("githubRepoConnections")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .filter((q) => q.and(
-        q.eq(q.field("owner"), owner),
-        q.eq(q.field("repoName"), repoName)
-      ))
+      .query("githubRepositories")
+      .withIndex("by_owner_repo", (q) => 
+        q.eq("owner", owner).eq("repoName", repoName)
+      )
       .first();
 
     const now = Date.now();
-    const connectionData = {
+
+    if (existing) {
+      // Repository already exists, just return it
+      return existing;
+    } else {
+      // Add new repository to global registry
+      return await ctx.db.insert("githubRepositories", {
+        repoUrl: `https://github.com/${owner}/${repoName}`,
+        owner,
+        repoName,
+        addedBy: userId,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  },
+});
+
+// Get all global repositories
+export const getGlobalRepositories = query({
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("githubRepositories")
+      .withIndex("by_active", (q) => q.eq("isActive", true))
+      .collect();
+  },
+});
+
+// STEP 3: Add User Access Token for a Repository
+export const addUserAccessToken = mutation({
+  args: {
+    repositoryId: v.id("githubRepositories"),
+    accessToken: v.string(),
+  },
+  handler: async (ctx, { repositoryId, accessToken }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Check if repository exists
+    const repository = await ctx.db.get(repositoryId);
+    if (!repository) throw new Error("Repository not found");
+
+    // Check if user already has access record for this repo
+    const existing = await ctx.db
+      .query("githubUserAccess")
+      .withIndex("by_user_repository", (q) => 
+        q.eq("userId", userId).eq("repositoryId", repositoryId)
+      )
+      .first();
+
+    const now = Date.now();
+    const accessData = {
       userId,
-      repoUrl: `https://github.com/${owner}/${repoName}`,
-      owner,
-      repoName,
+      repositoryId,
       accessToken, // In production, this should be encrypted
-      hasAccess: undefined, // Will be checked in step 3
+      hasAccess: undefined, // Will be checked in next step
       accessLevel: undefined,
       lastChecked: undefined,
-      isActive: true,
       updatedAt: now,
     };
 
     if (existing) {
-      return await ctx.db.patch(existing._id, connectionData);
+      return await ctx.db.patch(existing._id, accessData);
     } else {
-      return await ctx.db.insert("githubRepoConnections", {
-        ...connectionData,
+      return await ctx.db.insert("githubUserAccess", {
+        ...accessData,
         createdAt: now,
       });
     }
   },
 });
 
-// Get user's repository connections
-export const getGitHubRepoConnections = query({
+// Get user's access records with repository details
+export const getUserRepositoryAccess = query({
   handler: async (ctx) => {
     const userId = await auth.getUserId(ctx);
     if (!userId) return [];
 
-    return await ctx.db
-      .query("githubRepoConnections")
-      .withIndex("by_user_active", (q) => q.eq("userId", userId).eq("isActive", true))
+    // Get all repositories
+    const repositories = await ctx.db
+      .query("githubRepositories")
+      .withIndex("by_active", (q) => q.eq("isActive", true))
       .collect();
+
+    // Get user's access records
+    const userAccess = await ctx.db
+      .query("githubUserAccess")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+
+    // Combine repository info with user's access info
+    return repositories.map(repo => {
+      const access = userAccess.find(a => a.repositoryId === repo._id);
+      
+      // Get who added the repository
+      const addedByUser = ctx.db.get(repo.addedBy);
+      
+      return {
+        ...repo,
+        userAccess: access ? {
+          hasToken: true,
+          hasAccess: access.hasAccess,
+          accessLevel: access.accessLevel || "unknown",
+          lastChecked: access.lastChecked,
+          lastSyncedAt: access.lastSyncedAt,
+          accessId: access._id,
+        } : {
+          hasToken: false,
+          hasAccess: false,
+          accessLevel: "no-token",
+          lastChecked: null,
+          lastSyncedAt: null,
+          accessId: null,
+        }
+      };
+    });
   },
 });
 
-// STEP 3: Check Repository Access
-export const checkRepositoryAccess = action({
+// STEP 4: Check Repository Access for Current User
+export const checkUserRepositoryAccess = action({
   args: {
-    connectionId: v.id("githubRepoConnections"),
+    repositoryId: v.id("githubRepositories"),
   },
-  handler: async (ctx, { connectionId }) => {
-    console.log(`🚀 Starting access check for connection: ${connectionId}`);
+  handler: async (ctx, { repositoryId }) => {
+    console.log(`🚀 Starting access check for repository: ${repositoryId}`);
     
     const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Get the connection details
-    const connection = await ctx.runQuery(api.github.getRepoConnection, { connectionId });
-    if (!connection || connection.userId !== userId) {
-      throw new Error("Repository connection not found");
+    // Get repository details
+    const repository = await ctx.runQuery(api.github.getRepository, { repositoryId });
+    if (!repository) throw new Error("Repository not found");
+
+    // Get user's access record
+    const userAccess = await ctx.runQuery(api.github.getUserAccessRecord, { 
+      userId, 
+      repositoryId 
+    });
+
+    if (!userAccess) {
+      throw new Error("No access token configured. Please add your personal access token first.");
     }
 
-    console.log(`🔗 Checking access for repository: ${connection.owner}/${connection.repoName}`);
+    console.log(`🔗 Checking access for ${repository.owner}/${repository.repoName}`);
 
     try {
-      // Check access with GitHub API
+      // Check access with GitHub API using user's token
       const accessInfo = await verifyRepoAccess(
-        connection.accessToken,
-        connection.owner,
-        connection.repoName
+        userAccess.accessToken,
+        repository.owner,
+        repository.repoName
       );
 
-      // Update connection with access information
-      await ctx.runMutation(api.github.updateRepoAccess, {
-        connectionId,
+      // Update user's access record with results
+      await ctx.runMutation(api.github.updateUserAccess, {
+        accessId: userAccess._id,
         hasAccess: true,
         accessLevel: accessInfo.accessLevel,
       });
@@ -157,13 +245,13 @@ export const checkRepositoryAccess = action({
         success: true,
         hasAccess: true,
         accessLevel: accessInfo.accessLevel,
-        message: `Access verified! You have ${accessInfo.accessLevel} access to ${connection.owner}/${connection.repoName}`,
+        message: `Access verified! You have ${accessInfo.accessLevel} access to ${repository.owner}/${repository.repoName}`,
       };
 
     } catch (error) {
-      // Update connection with failed access
-      await ctx.runMutation(api.github.updateRepoAccess, {
-        connectionId,
+      // Update user's access record with failed access
+      await ctx.runMutation(api.github.updateUserAccess, {
+        accessId: userAccess._id,
         hasAccess: false,
         accessLevel: "none",
       });
@@ -178,39 +266,47 @@ export const checkRepositoryAccess = action({
   },
 });
 
-// Helper query to get single repo connection
-export const getRepoConnection = query({
-  args: { connectionId: v.id("githubRepoConnections") },
-  handler: async (ctx, { connectionId }) => {
-    const userId = await auth.getUserId(ctx);
-    if (!userId) return null;
-
-    const connection = await ctx.db.get(connectionId);
-    if (!connection || connection.userId !== userId) {
-      return null;
-    }
-
-    return connection;
+// Helper query to get a single repository
+export const getRepository = query({
+  args: { repositoryId: v.id("githubRepositories") },
+  handler: async (ctx, { repositoryId }) => {
+    return await ctx.db.get(repositoryId);
   },
 });
 
-// Helper mutation to update repo access
-export const updateRepoAccess = mutation({
+// Helper query to get user's access record for a repository
+export const getUserAccessRecord = query({
+  args: { 
+    userId: v.id("users"),
+    repositoryId: v.id("githubRepositories") 
+  },
+  handler: async (ctx, { userId, repositoryId }) => {
+    return await ctx.db
+      .query("githubUserAccess")
+      .withIndex("by_user_repository", (q) => 
+        q.eq("userId", userId).eq("repositoryId", repositoryId)
+      )
+      .first();
+  },
+});
+
+// Helper mutation to update user's access status
+export const updateUserAccess = mutation({
   args: {
-    connectionId: v.id("githubRepoConnections"),
+    accessId: v.id("githubUserAccess"),
     hasAccess: v.boolean(),
     accessLevel: v.string(),
   },
-  handler: async (ctx, { connectionId, hasAccess, accessLevel }) => {
+  handler: async (ctx, { accessId, hasAccess, accessLevel }) => {
     const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    const connection = await ctx.db.get(connectionId);
-    if (!connection || connection.userId !== userId) {
-      throw new Error("Repository connection not found");
+    const access = await ctx.db.get(accessId);
+    if (!access || access.userId !== userId) {
+      throw new Error("Access record not found");
     }
 
-    return await ctx.db.patch(connectionId, {
+    return await ctx.db.patch(accessId, {
       hasAccess,
       accessLevel,
       lastChecked: Date.now(),
@@ -219,21 +315,24 @@ export const updateRepoAccess = mutation({
   },
 });
 
-// Remove a repository connection
-export const removeRepoConnection = mutation({
+// Remove a repository from global registry (admin only)
+export const removeGlobalRepository = mutation({
   args: {
-    connectionId: v.id("githubRepoConnections"),
+    repositoryId: v.id("githubRepositories"),
   },
-  handler: async (ctx, { connectionId }) => {
+  handler: async (ctx, { repositoryId }) => {
     const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    const connection = await ctx.db.get(connectionId);
-    if (!connection || connection.userId !== userId) {
-      throw new Error("Repository connection not found");
+    const repository = await ctx.db.get(repositoryId);
+    if (!repository) throw new Error("Repository not found");
+
+    // Only the user who added it can remove it (or implement admin check)
+    if (repository.addedBy !== userId) {
+      throw new Error("Only the user who added this repository can remove it");
     }
 
-    return await ctx.db.patch(connectionId, {
+    return await ctx.db.patch(repositoryId, {
       isActive: false,
       updatedAt: Date.now(),
     });
@@ -256,17 +355,14 @@ export const disconnectGitHubProfile = mutation({
       await ctx.db.delete(profile._id);
     }
 
-    // Deactivate all repository connections
-    const connections = await ctx.db
-      .query("githubRepoConnections")
+    // Remove all user's access records
+    const userAccess = await ctx.db
+      .query("githubUserAccess")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
-    for (const connection of connections) {
-      await ctx.db.patch(connection._id, {
-        isActive: false,
-        updatedAt: Date.now(),
-      });
+    for (const access of userAccess) {
+      await ctx.db.delete(access._id);
     }
 
     return { success: true };
@@ -321,3 +417,207 @@ async function verifyRepoAccess(token, owner, repo) {
     fullName: repoData.full_name,
   };
 }
+
+// Sync document to a repository (requires user access)
+export const syncDocumentToRepository = action({
+  args: {
+    documentId: v.id("documents"),
+    repositoryId: v.id("githubRepositories"),
+    commitMessage: v.optional(v.string()),
+    filePath: v.optional(v.string()),
+  },
+  handler: async (ctx, { documentId, repositoryId, commitMessage, filePath }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Get document
+    const document = await ctx.runQuery(api.documents.getDocument, { id: documentId });
+    if (!document) throw new Error("Document not found");
+
+    // Get repository
+    const repository = await ctx.runQuery(api.github.getRepository, { repositoryId });
+    if (!repository) throw new Error("Repository not found");
+
+    // Get user's access record for this repository
+    const userAccess = await ctx.runQuery(api.github.getUserAccessRecord, { 
+      userId, 
+      repositoryId 
+    });
+
+    if (!userAccess) {
+      throw new Error("You haven't configured access to this repository. Please add your access token first.");
+    }
+
+    if (!userAccess.hasAccess) {
+      throw new Error("Repository access not verified. Please check access first in Settings.");
+    }
+
+    if (userAccess.accessLevel === "read" || userAccess.accessLevel === "none") {
+      throw new Error("Insufficient permissions. You need write or admin access to sync documents.");
+    }
+
+    try {
+      console.log(`📤 Starting document sync to ${repository.owner}/${repository.repoName}`);
+      
+      // Convert document content to Markdown (simplified for now)
+      const markdown = convertToMarkdown(document.content);
+      
+      // Prepare file content
+      const fileName = filePath || `docs/${document.title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-').toLowerCase()}.md`;
+      const fileContent = `# ${document.title}\n\n${markdown}\n\n---\n*Last updated: ${new Date().toISOString()}*\n*Synced from Potion*`;
+
+      // Sync to GitHub using user's token
+      const response = await syncToGitHubAPI({
+        token: userAccess.accessToken,
+        owner: repository.owner,
+        repo: repository.repoName,
+        path: fileName,
+        content: Buffer.from(fileContent).toString('base64'),
+        message: commitMessage || `Update: ${document.title}`,
+        branch: "main", // Default to main branch
+      });
+
+      // Update user's last sync time
+      await ctx.runMutation(api.github.updateUserLastSync, { 
+        accessId: userAccess._id 
+      });
+
+      console.log(`✅ Document synced successfully to ${repository.owner}/${repository.repoName}`);
+
+      return { 
+        success: true, 
+        url: response.content.html_url,
+        filePath: fileName,
+        commitSha: response.commit.sha,
+      };
+    } catch (error) {
+      console.error("GitHub sync error:", error);
+      throw new Error(`Failed to sync to GitHub: ${error.message}`);
+    }
+  },
+});
+
+// Helper mutation to update last sync time
+export const updateUserLastSync = mutation({
+  args: { accessId: v.id("githubUserAccess") },
+  handler: async (ctx, { accessId }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const access = await ctx.db.get(accessId);
+    if (!access || access.userId !== userId) {
+      throw new Error("Access record not found");
+    }
+
+    return await ctx.db.patch(accessId, {
+      lastSyncedAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+// Helper function to sync to GitHub API
+async function syncToGitHubAPI({ token, owner, repo, path, content, message, branch = "main" }) {
+  console.log(`🔄 Syncing file ${path} to ${owner}/${repo}:${branch}`);
+  
+  // First, try to get the existing file to get its SHA
+  let sha = null;
+  try {
+    const existingFileResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "Potion-App/1.0"
+      }
+    });
+
+    if (existingFileResponse.ok) {
+      const existingFile = await existingFileResponse.json();
+      sha = existingFile.sha;
+      console.log(`📄 Found existing file, SHA: ${sha.substring(0, 7)}...`);
+    }
+  } catch (error) {
+    console.log(`📝 File doesn't exist yet, creating new file`);
+  }
+
+  // Create or update the file
+  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+    method: "PUT",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Accept": "application/vnd.github.v3+json",
+      "Content-Type": "application/json",
+      "User-Agent": "Potion-App/1.0"
+    },
+    body: JSON.stringify({
+      message,
+      content,
+      branch,
+      ...(sha && { sha })
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`GitHub API error: ${response.status} - ${errorData.message}`);
+  }
+
+  const result = await response.json();
+  console.log(`🎉 File synced successfully: ${result.content.html_url}`);
+  
+  return result;
+}
+
+// Convert document content to Markdown (simplified)
+function convertToMarkdown(content) {
+  if (!content || !Array.isArray(content)) return '';
+  
+  return content.map(block => {
+    switch (block.type) {
+      case 'paragraph':
+        return block.content?.map(c => c.text || '').join('') || '';
+      case 'heading':
+        const level = block.props?.level || 1;
+        const headingText = block.content?.map(c => c.text || '').join('') || '';
+        return '#'.repeat(level) + ' ' + headingText;
+      case 'bulletListItem':
+        const bulletText = block.content?.map(c => c.text || '').join('') || '';
+        return '- ' + bulletText;
+      case 'numberedListItem':
+        const numberedText = block.content?.map(c => c.text || '').join('') || '';
+        return '1. ' + numberedText;
+      case 'codeBlock':
+        const language = block.props?.language || '';
+        const codeText = block.content?.map(c => c.text || '').join('') || '';
+        return '```' + language + '\n' + codeText + '\n```';
+      default:
+        return block.content?.map(c => c.text || '').join('') || '';
+    }
+  }).join('\n\n');
+}
+
+// Remove user's access to a repository
+export const removeUserAccess = mutation({
+  args: {
+    repositoryId: v.id("githubRepositories"),
+  },
+  handler: async (ctx, { repositoryId }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const userAccess = await ctx.db
+      .query("githubUserAccess")
+      .withIndex("by_user_repository", (q) => 
+        q.eq("userId", userId).eq("repositoryId", repositoryId)
+      )
+      .first();
+
+    if (!userAccess) {
+      throw new Error("Access record not found");
+    }
+
+    await ctx.db.delete(userAccess._id);
+    
+    return { success: true };
+  },
+});

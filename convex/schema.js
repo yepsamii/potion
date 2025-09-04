@@ -92,22 +92,34 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
 
-  githubRepoConnections: defineTable({
-    userId: v.id("users"),
+  // Global repository registry - visible to all users
+  githubRepositories: defineTable({
     repoUrl: v.string(), // Full GitHub repo URL (e.g., https://github.com/owner/repo)
     owner: v.string(), // Repository owner
-    repoName: v.string(), // Repository name
+    repoName: v.string(), // Repository name  
+    addedBy: v.id("users"), // Who added this repository
+    isActive: v.boolean(), // Whether this repository is active
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_owner_repo", ["owner", "repoName"])
+    .index("by_active", ["isActive"]),
+
+  // User-specific access to repositories
+  githubUserAccess: defineTable({
+    userId: v.id("users"),
+    repositoryId: v.id("githubRepositories"),
     accessToken: v.string(), // User's personal access token for this repo
     hasAccess: v.optional(v.boolean()), // Whether user has verified access
-    accessLevel: v.optional(v.string()), // read, write, admin
+    accessLevel: v.optional(v.string()), // none, read, write, admin
     lastChecked: v.optional(v.number()),
     lastSyncedAt: v.optional(v.number()),
-    isActive: v.boolean(), // Whether this connection is active
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_user_active", ["userId", "isActive"]),
+    .index("by_repository", ["repositoryId"])
+    .index("by_user_repository", ["userId", "repositoryId"]),
 
   documentVersions: defineTable({
     documentId: v.id("documents"),
