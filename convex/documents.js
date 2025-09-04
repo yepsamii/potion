@@ -7,9 +7,10 @@ export const createDocument = mutation({
     title: v.string(),
     workspaceId: v.id("workspaces"),
     parentId: v.optional(v.id("documents")),
+    folderId: v.optional(v.id("folders")),
     emoji: v.optional(v.string()),
   },
-  handler: async (ctx, { title, workspaceId, parentId, emoji }) => {
+  handler: async (ctx, { title, workspaceId, parentId, folderId, emoji }) => {
     const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
@@ -19,6 +20,7 @@ export const createDocument = mutation({
       title,
       workspaceId,
       parentId,
+      folderId,
       authorId: userId,
       emoji,
       isDeleted: false,
@@ -79,6 +81,37 @@ export const updateDocument = mutation({
     if (coverImage !== undefined) updates.coverImage = coverImage;
 
     return await ctx.db.patch(id, updates);
+  },
+});
+
+export const moveDocument = mutation({
+  args: {
+    documentId: v.id("documents"),
+    folderId: v.optional(v.union(v.id("folders"), v.null())),
+  },
+  handler: async (ctx, { documentId, folderId }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const document = await ctx.db.get(documentId);
+    if (!document || document.isDeleted) throw new Error("Document not found");
+
+    // If folderId is provided, verify the folder exists
+    if (folderId) {
+      const folder = await ctx.db.get(folderId);
+      if (!folder || folder.isDeleted) throw new Error("Folder not found");
+      
+      // Verify folder belongs to same workspace
+      if (folder.workspaceId !== document.workspaceId) {
+        throw new Error("Cannot move document to a folder in a different workspace");
+      }
+    }
+
+    // Update the document's folder
+    return await ctx.db.patch(documentId, {
+      folderId: folderId || undefined,
+      updatedAt: Date.now(),
+    });
   },
 });
 
@@ -162,7 +195,46 @@ export const getRootDocuments = query({
       .withIndex("by_workspace_not_deleted", (q) => 
         q.eq("workspaceId", workspaceId).eq("isDeleted", false)
       )
-      .filter((q) => q.eq(q.field("parentId"), undefined))
+      .filter((q) => q.eq(q.field("folderId"), undefined))
       .collect();
+  },
+});
+
+export const getDocumentsByFolder = query({
+  args: { folderId: v.id("folders") },
+  handler: async (ctx, { folderId }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return [];
+
+    return await ctx.db
+      .query("documents")
+      .withIndex("by_folder", (q) => q.eq("folderId", folderId))
+      .filter((q) => q.eq(q.field("isDeleted"), false))
+      .collect();
+  },
+});
+
+export const searchDocuments = query({
+  args: { 
+    workspaceId: v.id("workspaces"),
+    searchQuery: v.string() 
+  },
+  handler: async (ctx, { workspaceId, searchQuery }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return [];
+
+    if (!searchQuery.trim()) return [];
+
+    const documents = await ctx.db
+      .query("documents")
+      .withIndex("by_workspace_not_deleted", (q) => 
+        q.eq("workspaceId", workspaceId).eq("isDeleted", false)
+      )
+      .collect();
+
+    // Filter documents by title match (case insensitive)
+    return documents.filter(doc => 
+      doc.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
   },
 });

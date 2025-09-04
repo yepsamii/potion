@@ -18,6 +18,7 @@ export default defineSchema({
     content: v.optional(v.any()), // BlockNote JSON content
     workspaceId: v.id("workspaces"),
     parentId: v.optional(v.id("documents")), // For hierarchical structure
+    folderId: v.optional(v.id("folders")), // For folder organization
     authorId: v.id("users"),
     isDeleted: v.optional(v.boolean()),
     deletedAt: v.optional(v.number()),
@@ -29,6 +30,7 @@ export default defineSchema({
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_parent", ["parentId"])
+    .index("by_folder", ["folderId"])
     .index("by_author", ["authorId"])
     .index("by_workspace_not_deleted", ["workspaceId", "isDeleted"]),
 

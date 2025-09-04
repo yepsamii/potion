@@ -1,9 +1,24 @@
+import { useState } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { Trash2, RotateCcw, X } from 'lucide-react'
 import toast from 'react-hot-toast'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function Trash() {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [emptyTrashDialogOpen, setEmptyTrashDialogOpen] = useState(false)
+  const [selectedDocId, setSelectedDocId] = useState(null)
+  
   const workspaces = useQuery(api.workspaces.getWorkspaces)
   const deletedDocuments = useQuery(
     api.documents.getDeletedDocuments,
@@ -23,14 +38,19 @@ export default function Trash() {
   }
 
   const handlePermanentDelete = async (docId) => {
-    if (!window.confirm('Are you sure? This action cannot be undone.')) return
-    
     try {
-      await permanentDeleteDocument({ id: docId })
+      await permanentDeleteDocument({ id: docId || selectedDocId })
       toast.success('Document permanently deleted!')
+      setDeleteDialogOpen(false)
+      setSelectedDocId(null)
     } catch (error) {
       toast.error('Failed to delete document')
     }
+  }
+
+  const openDeleteDialog = (docId) => {
+    setSelectedDocId(docId)
+    setDeleteDialogOpen(true)
   }
 
   if (!deletedDocuments) {
@@ -95,7 +115,7 @@ export default function Trash() {
                   </button>
                   
                   <button
-                    onClick={() => handlePermanentDelete(doc._id)}
+                    onClick={() => openDeleteDialog(doc._id)}
                     className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                     title="Delete permanently"
                   >
@@ -113,15 +133,7 @@ export default function Trash() {
                 </p>
                 
                 <button
-                  onClick={() => {
-                    if (!window.confirm('Are you sure you want to empty the trash? This action cannot be undone.')) return
-                    
-                    deletedDocuments.forEach(doc => {
-                      permanentDeleteDocument({ id: doc._id })
-                    })
-                    
-                    toast.success('Trash emptied!')
-                  }}
+                  onClick={() => setEmptyTrashDialogOpen(true)}
                   className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                 >
                   Empty Trash
@@ -131,6 +143,55 @@ export default function Trash() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This document will be permanently deleted from your trash.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSelectedDocId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handlePermanentDelete()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Empty Trash Confirmation Dialog */}
+      <AlertDialog open={emptyTrashDialogOpen} onOpenChange={setEmptyTrashDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Empty the trash?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to empty the trash? All {deletedDocuments?.length || 0} document{deletedDocuments?.length !== 1 ? 's' : ''} will be permanently deleted. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={async () => {
+                try {
+                  for (const doc of deletedDocuments) {
+                    await permanentDeleteDocument({ id: doc._id })
+                  }
+                  toast.success('Trash emptied!')
+                  setEmptyTrashDialogOpen(false)
+                } catch (error) {
+                  toast.error('Failed to empty trash')
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Empty Trash
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
