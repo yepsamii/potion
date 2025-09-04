@@ -134,3 +134,27 @@ export const permanentDeleteFolder = mutation({
     return await ctx.db.delete(id);
   },
 });
+
+export const searchFolders = query({
+  args: { 
+    workspaceId: v.id("workspaces"),
+    searchQuery: v.string() 
+  },
+  handler: async (ctx, { workspaceId, searchQuery }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return [];
+
+    if (!searchQuery.trim()) return [];
+
+    const folders = await ctx.db
+      .query("folders")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .filter((q) => q.eq(q.field("isDeleted"), false))
+      .collect();
+
+    // Filter folders by name match (case insensitive)
+    return folders.filter(folder => 
+      folder.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  },
+});

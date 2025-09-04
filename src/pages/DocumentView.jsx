@@ -5,7 +5,7 @@ import { api } from '../../convex/_generated/api'
 import Editor from '../components/Editor'
 import { 
   MoreHorizontal, Trash2, Share2, Star, 
-  Github, Clock 
+  Github, Clock, Hash
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,16 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function DocumentView() {
   const { id } = useParams()
@@ -26,6 +36,8 @@ export default function DocumentView() {
   const [emoji, setEmoji] = useState('')
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showLineNumbers, setShowLineNumbers] = useState(true)
 
   const document = useQuery(api.documents.getDocument, { id })
   const updateDocument = useMutation(api.documents.updateDocument)
@@ -81,8 +93,6 @@ export default function DocumentView() {
   }, [id, updateDocument])
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this document?')) return
-    
     try {
       await deleteDocument({ id })
       toast.success('Document moved to trash!')
@@ -236,6 +246,10 @@ export default function DocumentView() {
                   Version history
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowLineNumbers(!showLineNumbers)}>
+                  <Hash className="mr-2 h-4 w-4" />
+                  {showLineNumbers ? 'Hide' : 'Show'} line numbers
+                </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Share2 className="mr-2 h-4 w-4" />
                   Share
@@ -246,7 +260,7 @@ export default function DocumentView() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleDelete}
+              onClick={() => setShowDeleteDialog(true)}
               className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
             >
               <Trash2 className="w-4 h-4" />
@@ -273,8 +287,27 @@ export default function DocumentView() {
           content={document.content}
           onChange={handleContentChange}
           placeholder="Start writing..."
+          showLineNumbers={showLineNumbers}
         />
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this document? It will be moved to the trash where you can restore it later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
