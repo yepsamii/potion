@@ -79,8 +79,9 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
     }
   }
 
-  const selectedAccess = userRepositoryAccess?.find(access => access.repositoryId === selectedRepository)
-  const selectedRepo = selectedAccess?.repository
+  const selectedRepoData = userRepositoryAccess?.find(item => item._id === selectedRepository)
+  const selectedRepo = selectedRepoData
+  const selectedAccess = selectedRepoData?.userAccess
 
   // Generate default file path
   const defaultPath = document ? 
@@ -113,14 +114,16 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
                 </SelectTrigger>
                 <SelectContent>
                   {userRepositoryAccess
-                    .filter(access => access.hasAccess && access.accessLevel !== "read")
-                    .map((access) => (
-                    <SelectItem key={access.repositoryId} value={access.repositoryId}>
+                    .filter(item => item.userAccess?.hasToken)
+                    .map((item) => (
+                    <SelectItem key={item._id} value={item._id}>
                       <div className="flex items-center gap-2 w-full">
-                        <span className="font-medium">{access.repository.owner}/{access.repository.repoName}</span>
+                        <span className="font-medium">{item.owner}/{item.repoName}</span>
                         <div className="flex items-center gap-1 ml-auto">
-                          <Badge variant="outline" className="text-xs">{access.accessLevel}</Badge>
-                          {access.hasAccess && (
+                          <Badge variant="outline" className="text-xs">
+                            {item.userAccess.hasAccess ? item.userAccess.accessLevel : "unverified"}
+                          </Badge>
+                          {item.userAccess.hasAccess && (
                             <CheckCircle className="w-3 h-3 text-green-600" />
                           )}
                         </div>

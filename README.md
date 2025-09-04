@@ -17,7 +17,7 @@ A comprehensive Notion clone built with React, Vite, Tailwind CSS, and Convex. F
 - 🎨 **Customization**: Emoji icons, covers, and themes (light/dark)
 - 🔗 **Sharing**: Document sharing with view/edit permissions
 - 📱 **Responsive Design**: Works on desktop and mobile
-- 🐙 **GitHub Integration**: Sync documents to GitHub repositories
+- 🐙 **GitHub Integration**: Global repository registry with individual user access - sync documents to any GitHub repository with proper permissions
 - 📋 **Templates**: Pre-built page templates
 - 💬 **Comments**: Inline comments on blocks (coming soon)
 - 📜 **Version History**: Track and revert changes (coming soon)
@@ -83,12 +83,17 @@ A comprehensive Notion clone built with React, Vite, Tailwind CSS, and Convex. F
      AUTH_GITHUB_SECRET=your_github_client_secret
      ```
 
-6. **Start the development server**
+6. **Configure GitHub Integration (optional)**
+   - For detailed setup instructions, see [GITHUB_INTEGRATION.md](./GITHUB_INTEGRATION.md)
+   - Users can add repositories to a global registry and configure personal access tokens
+   - Documents can be synced to GitHub as Markdown files
+
+7. **Start the development server**
    ```bash
    npm run dev
    ```
 
-7. **Open the app**
+8. **Open the app**
    Navigate to `http://localhost:3000`
 
 ## Project Structure
@@ -171,7 +176,9 @@ The app uses Convex with the following main tables:
 - `permissions` - Document access control
 - `comments` - Document comments
 - `templates` - Page templates
-- `githubIntegrations` - GitHub sync configuration
+- `githubProfiles` - Connected GitHub profiles
+- `githubRepositories` - Global repository registry (visible to all users)
+- `githubUserAccess` - User-specific access tokens and permissions
 
 ### Adding New Features
 

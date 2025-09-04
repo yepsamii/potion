@@ -439,25 +439,41 @@ export const syncDocumentToRepository = action({
     if (!repository) throw new Error("Repository not found");
 
     // Get user's access record for this repository
+    console.log(`🔍 Looking up user access for userId: ${userId}, repositoryId: ${repositoryId}`);
     const userAccess = await ctx.runQuery(api.github.getUserAccessRecord, { 
       userId, 
       repositoryId 
     });
 
     if (!userAccess) {
+      console.log(`❌ No user access record found for repository ${repositoryId}`);
       throw new Error("You haven't configured access to this repository. Please add your access token first.");
     }
 
-    if (!userAccess.hasAccess) {
-      throw new Error("Repository access not verified. Please check access first in Settings.");
+    console.log(`✅ Found user access record:`, {
+      hasAccess: userAccess.hasAccess,
+      accessLevel: userAccess.accessLevel,
+      lastChecked: userAccess.lastChecked,
+      tokenLength: userAccess.accessToken ? userAccess.accessToken.length : 0
+    });
+
+    // Allow sync even if access hasn't been verified yet, but log a warning
+    if (userAccess.hasAccess === false) {
+      throw new Error("Repository access was previously denied. Please check your token permissions in Settings and re-verify access.");
+    }
+
+    if (userAccess.hasAccess === undefined) {
+      console.log(`⚠️ Access not yet verified for ${repository.owner}/${repository.repoName}. Attempting sync anyway...`);
     }
 
     if (userAccess.accessLevel === "read" || userAccess.accessLevel === "none") {
-      throw new Error("Insufficient permissions. You need write or admin access to sync documents.");
+      throw new Error("Insufficient permissions. You need write or admin access to sync documents. Please verify your token has the 'repo' scope.");
     }
 
     try {
       console.log(`📤 Starting document sync to ${repository.owner}/${repository.repoName}`);
+      console.log(`🔐 User access level: ${userAccess.accessLevel}, Last checked: ${userAccess.lastChecked ? new Date(userAccess.lastChecked).toISOString() : 'never'}`);
+      console.log(`📍 Repository URL: ${repository.repoUrl}`);
       
       // Convert document content to Markdown (simplified for now)
       const markdown = convertToMarkdown(document.content);
@@ -472,7 +488,7 @@ export const syncDocumentToRepository = action({
         owner: repository.owner,
         repo: repository.repoName,
         path: fileName,
-        content: Buffer.from(fileContent).toString('base64'),
+        content: btoa(fileContent), // Use btoa for base64 encoding instead of Buffer
         message: commitMessage || `Update: ${document.title}`,
         branch: "main", // Default to main branch
       });
@@ -519,6 +535,8 @@ export const updateUserLastSync = mutation({
 // Helper function to sync to GitHub API
 async function syncToGitHubAPI({ token, owner, repo, path, content, message, branch = "main" }) {
   console.log(`🔄 Syncing file ${path} to ${owner}/${repo}:${branch}`);
+  console.log(`🔑 Token format: ${token.substring(0, 8)}... (${token.length} chars)`);
+  console.log(`📄 File size: ${content.length} base64 chars`);
   
   // First, try to get the existing file to get its SHA
   let sha = null;
@@ -559,7 +577,36 @@ async function syncToGitHubAPI({ token, owner, repo, path, content, message, bra
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(`GitHub API error: ${response.status} - ${errorData.message}`);
+    console.error(`GitHub API Error Details:`, {
+      status: response.status,
+      statusText: response.statusText,
+      message: errorData.message,
+      documentation_url: errorData.documentation_url,
+      errors: errorData.errors
+    });
+    
+    // Provide more helpful error messages based on status code
+    let helpfulMessage = errorData.message;
+    if (response.status === 403) {
+      helpfulMessage = `Access denied. Please check that your GitHub token has the required permissions:
+      • For private repositories: 'repo' scope is required
+      • For public repositories: 'public_repo' scope is sufficient
+      • Verify the repository exists and you have write access
+      Original error: ${errorData.message}`;
+    } else if (response.status === 404) {
+      helpfulMessage = `Repository not found. Please verify:
+      • The repository URL is correct
+      • The repository exists and hasn't been deleted
+      • Your token has access to this repository (if private)
+      Original error: ${errorData.message}`;
+    } else if (response.status === 401) {
+      helpfulMessage = `Authentication failed. Please check that:
+      • Your GitHub token is valid and hasn't expired
+      • The token format is correct (should start with 'ghp_')
+      Original error: ${errorData.message}`;
+    }
+    
+    throw new Error(`GitHub API error (${response.status}): ${helpfulMessage}`);
   }
 
   const result = await response.json();
