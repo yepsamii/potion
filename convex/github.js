@@ -1,42 +1,37 @@
 import { v } from "convex/values";
 import { action, mutation, query } from "./_generated/server";
+import { api } from "./_generated/api.js";
 import { auth } from "./auth.js";
 
-// Connect GitHub account with OAuth
-export const connectGitHub = mutation({
+// STEP 1: Connect GitHub Profile
+export const connectGitHubProfile = mutation({
   args: {
-    accessToken: v.string(),
     username: v.string(),
-    email: v.optional(v.string()),
-    avatarUrl: v.optional(v.string()),
   },
-  handler: async (ctx, { accessToken, username, email, avatarUrl }) => {
+  handler: async (ctx, { username }) => {
     const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Check if integration already exists
+    // Check if profile already exists
     const existing = await ctx.db
-      .query("githubIntegrations")
+      .query("githubProfiles")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
 
     const now = Date.now();
+    const profileUrl = `https://github.com/${username}`;
 
     if (existing) {
       return await ctx.db.patch(existing._id, {
-        accessToken, // In production, this should be encrypted
         username,
-        email,
-        avatarUrl,
+        profileUrl,
         updatedAt: now,
       });
     } else {
-      return await ctx.db.insert("githubIntegrations", {
+      return await ctx.db.insert("githubProfiles", {
         userId,
-        accessToken, // In production, this should be encrypted
         username,
-        email,
-        avatarUrl,
+        profileUrl,
         createdAt: now,
         updatedAt: now,
       });
@@ -44,426 +39,285 @@ export const connectGitHub = mutation({
   },
 });
 
-// Get user's GitHub integration
-export const getGitHubIntegration = query({
+// Get user's GitHub profile
+export const getGitHubProfile = query({
   handler: async (ctx) => {
     const userId = await auth.getUserId(ctx);
     if (!userId) return null;
 
     return await ctx.db
-      .query("githubIntegrations")
+      .query("githubProfiles")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
   },
 });
 
-// Disconnect GitHub integration
-export const disconnectGitHub = mutation({
+// STEP 2: Connect Git Repository
+export const connectGitRepository = mutation({
+  args: {
+    repoUrl: v.string(),
+    accessToken: v.string(),
+  },
+  handler: async (ctx, { repoUrl, accessToken }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Parse repository URL to extract owner and repo name
+    const repoMatch = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (!repoMatch) {
+      throw new Error("Invalid GitHub repository URL. Please use format: https://github.com/owner/repo");
+    }
+
+    const owner = repoMatch[1];
+    const repoName = repoMatch[2].replace('.git', ''); // Remove .git if present
+
+    // Check if this repo connection already exists
+    const existing = await ctx.db
+      .query("githubRepoConnections")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.and(
+        q.eq(q.field("owner"), owner),
+        q.eq(q.field("repoName"), repoName)
+      ))
+      .first();
+
+    const now = Date.now();
+    const connectionData = {
+      userId,
+      repoUrl: `https://github.com/${owner}/${repoName}`,
+      owner,
+      repoName,
+      accessToken, // In production, this should be encrypted
+      hasAccess: undefined, // Will be checked in step 3
+      accessLevel: undefined,
+      lastChecked: undefined,
+      isActive: true,
+      updatedAt: now,
+    };
+
+    if (existing) {
+      return await ctx.db.patch(existing._id, connectionData);
+    } else {
+      return await ctx.db.insert("githubRepoConnections", {
+        ...connectionData,
+        createdAt: now,
+      });
+    }
+  },
+});
+
+// Get user's repository connections
+export const getGitHubRepoConnections = query({
+  handler: async (ctx) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return [];
+
+    return await ctx.db
+      .query("githubRepoConnections")
+      .withIndex("by_user_active", (q) => q.eq("userId", userId).eq("isActive", true))
+      .collect();
+  },
+});
+
+// STEP 3: Check Repository Access
+export const checkRepositoryAccess = action({
+  args: {
+    connectionId: v.id("githubRepoConnections"),
+  },
+  handler: async (ctx, { connectionId }) => {
+    console.log(`🚀 Starting access check for connection: ${connectionId}`);
+    
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Get the connection details
+    const connection = await ctx.runQuery(api.github.getRepoConnection, { connectionId });
+    if (!connection || connection.userId !== userId) {
+      throw new Error("Repository connection not found");
+    }
+
+    console.log(`🔗 Checking access for repository: ${connection.owner}/${connection.repoName}`);
+
+    try {
+      // Check access with GitHub API
+      const accessInfo = await verifyRepoAccess(
+        connection.accessToken,
+        connection.owner,
+        connection.repoName
+      );
+
+      // Update connection with access information
+      await ctx.runMutation(api.github.updateRepoAccess, {
+        connectionId,
+        hasAccess: true,
+        accessLevel: accessInfo.accessLevel,
+      });
+
+      return {
+        success: true,
+        hasAccess: true,
+        accessLevel: accessInfo.accessLevel,
+        message: `Access verified! You have ${accessInfo.accessLevel} access to ${connection.owner}/${connection.repoName}`,
+      };
+
+    } catch (error) {
+      // Update connection with failed access
+      await ctx.runMutation(api.github.updateRepoAccess, {
+        connectionId,
+        hasAccess: false,
+        accessLevel: "none",
+      });
+
+      return {
+        success: false,
+        hasAccess: false,
+        accessLevel: "none",
+        message: `Access denied: ${error.message}`,
+      };
+    }
+  },
+});
+
+// Helper query to get single repo connection
+export const getRepoConnection = query({
+  args: { connectionId: v.id("githubRepoConnections") },
+  handler: async (ctx, { connectionId }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return null;
+
+    const connection = await ctx.db.get(connectionId);
+    if (!connection || connection.userId !== userId) {
+      return null;
+    }
+
+    return connection;
+  },
+});
+
+// Helper mutation to update repo access
+export const updateRepoAccess = mutation({
+  args: {
+    connectionId: v.id("githubRepoConnections"),
+    hasAccess: v.boolean(),
+    accessLevel: v.string(),
+  },
+  handler: async (ctx, { connectionId, hasAccess, accessLevel }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const connection = await ctx.db.get(connectionId);
+    if (!connection || connection.userId !== userId) {
+      throw new Error("Repository connection not found");
+    }
+
+    return await ctx.db.patch(connectionId, {
+      hasAccess,
+      accessLevel,
+      lastChecked: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+// Remove a repository connection
+export const removeRepoConnection = mutation({
+  args: {
+    connectionId: v.id("githubRepoConnections"),
+  },
+  handler: async (ctx, { connectionId }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const connection = await ctx.db.get(connectionId);
+    if (!connection || connection.userId !== userId) {
+      throw new Error("Repository connection not found");
+    }
+
+    return await ctx.db.patch(connectionId, {
+      isActive: false,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+// Disconnect GitHub profile entirely
+export const disconnectGitHubProfile = mutation({
   handler: async (ctx) => {
     const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Remove integration
-    const integration = await ctx.db
-      .query("githubIntegrations")
+    // Remove profile
+    const profile = await ctx.db
+      .query("githubProfiles")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
 
-    if (integration) {
-      await ctx.db.delete(integration._id);
+    if (profile) {
+      await ctx.db.delete(profile._id);
     }
 
-    // Remove all repositories
-    const repositories = await ctx.db
-      .query("githubRepositories")
+    // Deactivate all repository connections
+    const connections = await ctx.db
+      .query("githubRepoConnections")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
-    for (const repo of repositories) {
-      await ctx.db.delete(repo._id);
+    for (const connection of connections) {
+      await ctx.db.patch(connection._id, {
+        isActive: false,
+        updatedAt: Date.now(),
+      });
     }
 
     return { success: true };
   },
 });
 
-// Fetch repositories from GitHub and store them
-export const fetchGitHubRepositories = action({
-  handler: async (ctx) => {
-    const userId = await auth.getUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Get GitHub integration
-    const integration = await ctx.db
-      .query("githubIntegrations")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!integration) {
-      throw new Error("GitHub integration not found");
-    }
-
-    try {
-      // Fetch repositories from GitHub API
-      const repositories = await fetchUserRepositories(integration.accessToken);
-
-      const now = Date.now();
-
-      // Store or update repositories
-      for (const repo of repositories) {
-        // Check if repository already exists
-        const existing = await ctx.db
-          .query("githubRepositories")
-          .withIndex("by_user", (q) => q.eq("userId", userId))
-          .filter((q) => q.eq(q.field("repoId"), repo.id))
-          .first();
-
-        const repoData = {
-          userId,
-          repoId: repo.id,
-          name: repo.name,
-          fullName: repo.full_name,
-          owner: repo.owner.login,
-          isPrivate: repo.private,
-          description: repo.description,
-          htmlUrl: repo.html_url,
-          cloneUrl: repo.clone_url,
-          defaultBranch: repo.default_branch,
-          permissions: {
-            admin: repo.permissions?.admin || false,
-            maintain: repo.permissions?.maintain || false,
-            push: repo.permissions?.push || false,
-            triage: repo.permissions?.triage || false,
-            pull: repo.permissions?.pull || false,
-          },
-          isEnabled: existing?.isEnabled || false, // Keep existing enabled status
-          updatedAt: now,
-        };
-
-        if (existing) {
-          await ctx.db.patch(existing._id, repoData);
-        } else {
-          await ctx.db.insert("githubRepositories", {
-            ...repoData,
-            createdAt: now,
-          });
-        }
-      }
-
-      return { success: true, count: repositories.length };
-    } catch (error) {
-      console.error("Failed to fetch repositories:", error);
-      throw new Error(`Failed to fetch repositories: ${error.message}`);
-    }
-  },
-});
-
-// Get user's GitHub repositories
-export const getGitHubRepositories = query({
-  args: { onlyEnabled: v.optional(v.boolean()) },
-  handler: async (ctx, { onlyEnabled = false }) => {
-    const userId = await auth.getUserId(ctx);
-    if (!userId) return [];
-
-    if (onlyEnabled) {
-      return await ctx.db
-        .query("githubRepositories")
-        .withIndex("by_user_enabled", (q) => 
-          q.eq("userId", userId).eq("isEnabled", true)
-        )
-        .collect();
-    }
-
-    return await ctx.db
-      .query("githubRepositories")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .collect();
-  },
-});
-
-// Toggle repository enabled status
-export const toggleRepository = mutation({
-  args: { 
-    repositoryId: v.id("githubRepositories"),
-    isEnabled: v.boolean()
-  },
-  handler: async (ctx, { repositoryId, isEnabled }) => {
-    const userId = await auth.getUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const repository = await ctx.db.get(repositoryId);
-    if (!repository || repository.userId !== userId) {
-      throw new Error("Repository not found or access denied");
-    }
-
-    return await ctx.db.patch(repositoryId, {
-      isEnabled,
-      updatedAt: Date.now(),
-    });
-  },
-});
-
-// Check repository permissions for sync
-export const checkRepositoryPermissions = action({
-  args: { repositoryId: v.id("githubRepositories") },
-  handler: async (ctx, { repositoryId }) => {
-    const userId = await auth.getUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const repository = await ctx.db.get(repositoryId);
-    if (!repository || repository.userId !== userId) {
-      throw new Error("Repository not found or access denied");
-    }
-
-    const integration = await ctx.db
-      .query("githubIntegrations")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!integration) {
-      throw new Error("GitHub integration not found");
-    }
-
-    try {
-      // Check current permissions with GitHub API
-      const repoData = await checkRepositoryAccess(
-        integration.accessToken,
-        repository.owner,
-        repository.name
-      );
-
-      // Update permissions in database
-      await ctx.db.patch(repositoryId, {
-        permissions: {
-          admin: repoData.permissions?.admin || false,
-          maintain: repoData.permissions?.maintain || false,
-          push: repoData.permissions?.push || false,
-          triage: repoData.permissions?.triage || false,
-          pull: repoData.permissions?.pull || false,
-        },
-        updatedAt: Date.now(),
-      });
-
-      return {
-        canSync: repoData.permissions?.push || repoData.permissions?.admin,
-        permissions: repoData.permissions,
-      };
-    } catch (error) {
-      console.error("Permission check failed:", error);
-      throw new Error(`Permission check failed: ${error.message}`);
-    }
-  },
-});
-
-// Sync document to specific GitHub repository
-export const syncDocumentToRepository = action({
-  args: {
-    documentId: v.id("documents"),
-    repositoryId: v.id("githubRepositories"),
-    commitMessage: v.optional(v.string()),
-    filePath: v.optional(v.string()), // Custom file path
-  },
-  handler: async (ctx, { documentId, repositoryId, commitMessage, filePath }) => {
-    const userId = await auth.getUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Get document
-    const document = await ctx.db.get(documentId);
-    if (!document) throw new Error("Document not found");
-
-    // Get repository
-    const repository = await ctx.db.get(repositoryId);
-    if (!repository || repository.userId !== userId) {
-      throw new Error("Repository not found or access denied");
-    }
-
-    if (!repository.isEnabled) {
-      throw new Error("Repository is not enabled for syncing");
-    }
-
-    // Get GitHub integration
-    const integration = await ctx.db
-      .query("githubIntegrations")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!integration) {
-      throw new Error("GitHub integration not found");
-    }
-
-    // Check permissions
-    if (!repository.permissions.push && !repository.permissions.admin) {
-      throw new Error("Insufficient permissions to push to this repository");
-    }
-
-    try {
-      // Convert BlockNote content to Markdown
-      const markdown = convertToMarkdown(document.content);
-      
-      // Prepare file content
-      const fileName = filePath || `docs/${document.title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-').toLowerCase()}.md`;
-      const fileContent = `# ${document.title}\n\n${markdown}\n\n---\n*Last updated: ${new Date().toISOString()}*\n*Synced from ${document.author?.name || 'Notion Clone'}*`;
-
-      // Sync to GitHub
-      const response = await syncToGitHubAPI({
-        token: integration.accessToken,
-        owner: repository.owner,
-        repo: repository.name,
-        path: fileName,
-        content: Buffer.from(fileContent).toString('base64'),
-        message: commitMessage || `Update: ${document.title}`,
-        branch: repository.defaultBranch,
-      });
-
-      // Update last sync time
-      await ctx.db.patch(repositoryId, {
-        lastSyncedAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-
-      return { 
-        success: true, 
-        url: response.content.html_url,
-        filePath: fileName,
-        commitSha: response.commit.sha,
-      };
-    } catch (error) {
-      console.error("GitHub sync error:", error);
-      throw new Error(`Failed to sync to GitHub: ${error.message}`);
-    }
-  },
-});
-
-// Helper function to fetch user repositories from GitHub API
-async function fetchUserRepositories(token) {
-  const response = await fetch("https://api.github.com/user/repos?per_page=100&type=all", {
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Accept": "application/vnd.github.v3+json",
-      "User-Agent": "Notion-Clone-App/1.0"
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
-  }
-
-  return await response.json();
-}
-
-// Helper function to check repository access
-async function checkRepositoryAccess(token, owner, repo) {
+// Helper function to verify repository access
+async function verifyRepoAccess(token, owner, repo) {
+  console.log(`🔍 Checking access for ${owner}/${repo} with GitHub API...`);
+  
   const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
     headers: {
       "Authorization": `Bearer ${token}`,
       "Accept": "application/vnd.github.v3+json",
-      "User-Agent": "Notion-Clone-App/1.0"
+      "User-Agent": "Potion-App/1.0"
     }
   });
+  
+  console.log(`📡 GitHub API Response Status: ${response.status}`);
 
   if (!response.ok) {
-    throw new Error(`Repository access check failed: ${response.status} ${response.statusText}`);
-  }
-
-  return await response.json();
-}
-
-// Helper function to sync to GitHub API
-async function syncToGitHubAPI({ token, owner, repo, path, content, message, branch = "main" }) {
-  // First, try to get the existing file to get its SHA
-  let sha = null;
-  try {
-    const existingFileResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "Notion-Clone-App/1.0"
-      }
-    });
-
-    if (existingFileResponse.ok) {
-      const existingFile = await existingFileResponse.json();
-      sha = existingFile.sha;
+    if (response.status === 404) {
+      throw new Error("Repository not found or you don't have access");
+    } else if (response.status === 401) {
+      throw new Error("Invalid access token");
+    } else {
+      throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
     }
-  } catch (error) {
-    // File doesn't exist, which is fine
   }
 
-  // Create or update the file
-  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
-    method: "PUT",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Accept": "application/vnd.github.v3+json",
-      "Content-Type": "application/json",
-      "User-Agent": "Notion-Clone-App/1.0"
-    },
-    body: JSON.stringify({
-      message,
-      content,
-      branch,
-      ...(sha && { sha })
-    })
+  const repoData = await response.json();
+  
+  // Determine access level based on permissions
+  let accessLevel = "read";
+  if (repoData.permissions?.admin) {
+    accessLevel = "admin";
+  } else if (repoData.permissions?.push) {
+    accessLevel = "write";
+  }
+
+  console.log(`✅ Access verification complete:`, {
+    repository: `${owner}/${repo}`,
+    accessLevel,
+    permissions: repoData.permissions,
+    isPrivate: repoData.private
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`GitHub API error: ${response.status} - ${errorData.message}`);
-  }
-
-  return await response.json();
-}
-
-// Convert BlockNote content to Markdown
-function convertToMarkdown(blocks) {
-  if (!blocks || !Array.isArray(blocks)) return '';
-  
-  return blocks.map(block => {
-    switch (block.type) {
-      case 'paragraph':
-        return block.content?.map(c => c.text || '').join('') || '';
-      case 'heading':
-        const level = block.props?.level || 1;
-        const headingText = block.content?.map(c => c.text || '').join('') || '';
-        return '#'.repeat(level) + ' ' + headingText;
-      case 'bulletListItem':
-        const bulletText = block.content?.map(c => c.text || '').join('') || '';
-        return '- ' + bulletText;
-      case 'numberedListItem':
-        const numberedText = block.content?.map(c => c.text || '').join('') || '';
-        return '1. ' + numberedText;
-      case 'codeBlock':
-        const language = block.props?.language || '';
-        const codeText = block.content?.map(c => c.text || '').join('') || '';
-        return '```' + language + '\n' + codeText + '\n```';
-      case 'table':
-        // Basic table conversion (simplified)
-        return convertTableToMarkdown(block);
-      default:
-        return block.content?.map(c => c.text || '').join('') || '';
-    }
-  }).join('\n\n');
-}
-
-function convertTableToMarkdown(tableBlock) {
-  // Simplified table conversion
-  if (!tableBlock.content || !tableBlock.content.rows) return '';
-  
-  const rows = tableBlock.content.rows;
-  if (rows.length === 0) return '';
-
-  let markdown = '';
-  
-  // Header row
-  if (rows[0]) {
-    markdown += '| ' + rows[0].cells.map(cell => cell.text || '').join(' | ') + ' |\n';
-    markdown += '|' + rows[0].cells.map(() => '---').join('|') + '|\n';
-  }
-  
-  // Data rows
-  for (let i = 1; i < rows.length; i++) {
-    markdown += '| ' + rows[i].cells.map(cell => cell.text || '').join(' | ') + ' |\n';
-  }
-  
-  return markdown;
+  return {
+    accessLevel,
+    canPush: repoData.permissions?.push || repoData.permissions?.admin,
+    isPrivate: repoData.private,
+    fullName: repoData.full_name,
+  };
 }

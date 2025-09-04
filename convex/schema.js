@@ -83,42 +83,31 @@ export default defineSchema({
     .index("by_author", ["authorId"])
     .index("by_public", ["isPublic"]),
 
-  githubIntegrations: defineTable({
+  githubProfiles: defineTable({
     userId: v.id("users"),
-    accessToken: v.string(), // Encrypted
     username: v.string(),
-    email: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
-    lastSyncAt: v.optional(v.number()),
+    profileUrl: v.string(),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
 
-  githubRepositories: defineTable({
+  githubRepoConnections: defineTable({
     userId: v.id("users"),
-    repoId: v.number(), // GitHub repository ID
-    name: v.string(), // Repository name
-    fullName: v.string(), // owner/repo
-    owner: v.string(),
-    isPrivate: v.boolean(),
-    description: v.optional(v.string()),
-    htmlUrl: v.string(),
-    cloneUrl: v.string(),
-    defaultBranch: v.string(),
-    permissions: v.object({
-      admin: v.boolean(),
-      maintain: v.boolean(),
-      push: v.boolean(),
-      triage: v.boolean(),
-      pull: v.boolean(),
-    }),
+    repoUrl: v.string(), // Full GitHub repo URL (e.g., https://github.com/owner/repo)
+    owner: v.string(), // Repository owner
+    repoName: v.string(), // Repository name
+    accessToken: v.string(), // User's personal access token for this repo
+    hasAccess: v.optional(v.boolean()), // Whether user has verified access
+    accessLevel: v.optional(v.string()), // read, write, admin
+    lastChecked: v.optional(v.number()),
     lastSyncedAt: v.optional(v.number()),
-    isEnabled: v.boolean(), // Whether user wants to use this repo for syncing
+    isActive: v.boolean(), // Whether this connection is active
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_user_enabled", ["userId", "isEnabled"]),
+    .index("by_user_active", ["userId", "isActive"]),
 
   documentVersions: defineTable({
     documentId: v.id("documents"),

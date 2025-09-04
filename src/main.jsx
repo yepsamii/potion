@@ -17,7 +17,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <App />
           <Toaster position="top-right" />
         </BrowserRouter>
-      </ConvexProvider>{" "}
+      </ConvexProvider>
     </ConvexAuthProvider>
   </React.StrictMode>
 );
