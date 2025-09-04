@@ -87,11 +87,38 @@ export default defineSchema({
     userId: v.id("users"),
     accessToken: v.string(), // Encrypted
     username: v.string(),
-    repoName: v.optional(v.string()),
-    repoUrl: v.optional(v.string()),
+    email: v.optional(v.string()),
+    avatarUrl: v.optional(v.string()),
     lastSyncAt: v.optional(v.number()),
     createdAt: v.number(),
+    updatedAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  githubRepositories: defineTable({
+    userId: v.id("users"),
+    repoId: v.number(), // GitHub repository ID
+    name: v.string(), // Repository name
+    fullName: v.string(), // owner/repo
+    owner: v.string(),
+    isPrivate: v.boolean(),
+    description: v.optional(v.string()),
+    htmlUrl: v.string(),
+    cloneUrl: v.string(),
+    defaultBranch: v.string(),
+    permissions: v.object({
+      admin: v.boolean(),
+      maintain: v.boolean(),
+      push: v.boolean(),
+      triage: v.boolean(),
+      pull: v.boolean(),
+    }),
+    lastSyncedAt: v.optional(v.number()),
+    isEnabled: v.boolean(), // Whether user wants to use this repo for syncing
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_enabled", ["userId", "isEnabled"]),
 
   documentVersions: defineTable({
     documentId: v.id("documents"),

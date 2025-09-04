@@ -11,13 +11,13 @@ const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <ConvexProvider client={convex}>
-      <ConvexAuthProvider client={convex}>
+    <ConvexAuthProvider client={convex}>
+      <ConvexProvider client={convex}>
         <BrowserRouter>
           <App />
           <Toaster position="top-right" />
         </BrowserRouter>
-      </ConvexAuthProvider>
-    </ConvexProvider>
+      </ConvexProvider>{" "}
+    </ConvexAuthProvider>
   </React.StrictMode>
 );

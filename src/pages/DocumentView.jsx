@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import Editor from '../components/Editor'
+import GitHubSyncModal from '../components/GitHubSyncModal'
 import { 
   MoreHorizontal, Trash2, Share2, Star, 
   Github, Clock
@@ -44,10 +45,15 @@ export default function DocumentView() {
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showGitHubSync, setShowGitHubSync] = useState(false)
 
   const document = useQuery(api.documents.getDocument, { id })
   const updateDocument = useMutation(api.documents.updateDocument)
   const deleteDocument = useMutation(api.documents.deleteDocument)
+  
+  // GitHub integration
+  const githubIntegration = useQuery(api.github.getGitHubIntegration)
+  const enabledRepositories = useQuery(api.github.getGitHubRepositories, { onlyEnabled: true })
 
   useEffect(() => {
     if (document) {
@@ -216,6 +222,15 @@ export default function DocumentView() {
               variant="ghost"
               size="icon"
               className="h-8 w-8"
+              onClick={() => setShowGitHubSync(true)}
+              disabled={!githubIntegration || !enabledRepositories?.length}
+              title={
+                !githubIntegration 
+                  ? 'Connect GitHub in Settings first'
+                  : !enabledRepositories?.length
+                  ? 'Enable repositories in Settings first'
+                  : 'Sync to GitHub repository'
+              }
             >
               <Github className="w-4 h-4" />
             </Button>
@@ -243,7 +258,10 @@ export default function DocumentView() {
                   <Star className="mr-2 h-4 w-4" />
                   Add to favorites
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setShowGitHubSync(true)}
+                  disabled={!githubIntegration || !enabledRepositories?.length}
+                >
                   <Github className="mr-2 h-4 w-4" />
                   Sync to GitHub
                 </DropdownMenuItem>
@@ -357,6 +375,13 @@ export default function DocumentView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* GitHub Sync Modal */}
+      <GitHubSyncModal
+        isOpen={showGitHubSync}
+        onClose={() => setShowGitHubSync(false)}
+        document={document}
+      />
     </div>
   )
 }
