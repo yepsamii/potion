@@ -15,6 +15,7 @@ import {
   Home,
   Moon,
   Sun,
+  Users,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -230,6 +231,18 @@ export default function Sidebar({ isOpen, onToggle }) {
               <Link to="/settings">
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
+              </Link>
+            </Button>
+
+            <Button
+              variant={location.pathname === "/users" ? "secondary" : "ghost"}
+              size="sm"
+              asChild
+              className="w-full justify-start"
+            >
+              <Link to="/users">
+                <Users className="mr-2 h-4 w-4" />
+                Users Dashboard
               </Link>
             </Button>
 

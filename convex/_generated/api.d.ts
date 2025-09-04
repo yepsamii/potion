@@ -19,6 +19,7 @@ import type * as files from "../files.js";
 import type * as folders from "../folders.js";
 import type * as github from "../github.js";
 import type * as http from "../http.js";
+import type * as users from "../users.js";
 import type * as workspaces from "../workspaces.js";
 
 /**
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   folders: typeof folders;
   github: typeof github;
   http: typeof http;
+  users: typeof users;
   workspaces: typeof workspaces;
 }>;
 export declare const api: FilterApi<

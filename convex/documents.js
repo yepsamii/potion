@@ -53,8 +53,8 @@ export const getDocuments = query({
         
         return {
           ...doc,
-          author: author ? { id: author._id, name: author.name, email: author.email } : null,
-          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email } : null,
+          author: author ? { id: author._id, name: author.name, email: author.email, image: author.image } : null,
+          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email, image: lastEditor.image } : null,
         };
       })
     );
@@ -234,8 +234,8 @@ export const getRootDocuments = query({
         
         return {
           ...doc,
-          author: author ? { id: author._id, name: author.name, email: author.email } : null,
-          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email } : null,
+          author: author ? { id: author._id, name: author.name, email: author.email, image: author.image } : null,
+          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email, image: lastEditor.image } : null,
         };
       })
     );
@@ -264,8 +264,8 @@ export const getDocumentsByFolder = query({
         
         return {
           ...doc,
-          author: author ? { id: author._id, name: author.name, email: author.email } : null,
-          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email } : null,
+          author: author ? { id: author._id, name: author.name, email: author.email, image: author.image } : null,
+          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email, image: lastEditor.image } : null,
         };
       })
     );
@@ -305,8 +305,8 @@ export const searchDocuments = query({
         
         return {
           ...doc,
-          author: author ? { id: author._id, name: author.name, email: author.email } : null,
-          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email } : null,
+          author: author ? { id: author._id, name: author.name, email: author.email, image: author.image } : null,
+          lastEditor: lastEditor ? { id: lastEditor._id, name: lastEditor.name, email: lastEditor.email, image: lastEditor.image } : null,
         };
       })
     );

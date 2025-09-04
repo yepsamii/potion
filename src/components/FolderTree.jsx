@@ -23,6 +23,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 
 export default function FolderTree({
   workspaceId,
@@ -559,9 +561,9 @@ export default function FolderTree({
 
         <Link
           to={`/document/${doc._id}`}
-          className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-lg cursor-pointer transition-all duration-200 relative z-20 ${
+          className={`flex items-center gap-2 px-1 py-1.5 text-sm cursor-pointer transition-all duration-200 relative ${
             isSelected
-              ? "bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-950/40 dark:to-blue-950/20 border-l-3 border-blue-500 dark:border-blue-400 shadow-sm"
+              ? "bg-gradient-to-r from-transparent to-blue-50/80 dark:from-blue-950/40 rounded dark:to-blue-950/20 border-l-3 border-blue-500 dark:border-blue-400"
               : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
           }`}
           style={{ marginLeft: paddingLeft }}
@@ -585,9 +587,24 @@ export default function FolderTree({
               {doc.title}
             </span>
             {doc.author && (
-              <span className="text-xs text-muted-foreground truncate block">
-                by {doc.author.name}
-              </span>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-xs text-muted-foreground">by</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Avatar className="h-4 w-4">
+                        <AvatarImage src={doc.author.image} alt={doc.author.name} />
+                        <AvatarFallback className="text-xs">
+                          {doc.author.name?.charAt(0)?.toUpperCase() || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{doc.author.name}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
             )}
           </div>
           {isSelected && (

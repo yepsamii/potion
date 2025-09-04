@@ -11,6 +11,13 @@ import toast from 'react-hot-toast'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -268,12 +275,55 @@ export default function DocumentView() {
       <div className="px-8 py-2 border-b border-border">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <p className="text-sm text-muted-foreground">
-              Created by <span className="font-medium">{document.author?.name || 'Unknown'}</span> on {new Date(document.createdAt).toLocaleDateString()}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Last edited by <span className="font-medium">{document.lastEditor?.name || document.author?.name || 'Unknown'}</span> on {new Date(document.updatedAt).toLocaleString()}
-            </p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Created by</span>
+              {document.author ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Avatar className="h-5 w-5 cursor-pointer">
+                        <AvatarImage src={document.author.image} alt={document.author.name} />
+                        <AvatarFallback className="text-xs">
+                          {document.author.name?.charAt(0)?.toUpperCase() || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{document.author.name}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <span className="font-medium">Unknown</span>
+              )}
+              <span>on {new Date(document.createdAt).toLocaleDateString()}</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Last edited by</span>
+              {document.lastEditor || document.author ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Avatar className="h-5 w-5 cursor-pointer">
+                        <AvatarImage 
+                          src={(document.lastEditor || document.author)?.image} 
+                          alt={(document.lastEditor || document.author)?.name} 
+                        />
+                        <AvatarFallback className="text-xs">
+                          {(document.lastEditor || document.author)?.name?.charAt(0)?.toUpperCase() || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{(document.lastEditor || document.author)?.name}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <span className="font-medium">Unknown</span>
+              )}
+              <span>on {new Date(document.updatedAt).toLocaleString()}</span>
+            </div>
           </div>
           <Badge variant="secondary" className="text-xs">
             Shared

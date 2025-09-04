@@ -1,4 +1,6 @@
 import { useAuthActions } from '@convex-dev/auth/react'
+import { useQuery } from 'convex/react'
+import { api } from '../../convex/_generated/api'
 import { User, Github, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Button } from "@/components/ui/button"
@@ -6,9 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default function Settings() {
   const { signOut } = useAuthActions()
+  const currentUser = useQuery(api.users.getCurrentUser)
 
   const handleSignOut = async () => {
     try {
@@ -40,19 +44,37 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex items-center gap-4 mb-6">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={currentUser?.image} alt={currentUser?.name} />
+                  <AvatarFallback className="text-lg">
+                    {currentUser?.name?.charAt(0)?.toUpperCase() || '?'}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-lg font-semibold">{currentUser?.name || 'Loading...'}</h3>
+                  <p className="text-sm text-muted-foreground">{currentUser?.email}</p>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Display Name</Label>
                 <Input
                   id="name"
                   type="text"
+                  value={currentUser?.name || ''}
                   placeholder="Your Name"
+                  disabled
                 />
+                <p className="text-xs text-muted-foreground">
+                  Name is managed by your authentication provider
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
+                  value={currentUser?.email || ''}
                   placeholder="your.email@example.com"
                   disabled
                 />

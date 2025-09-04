@@ -6,6 +6,7 @@ import Home from "./pages/Home";
 import DocumentView from "./pages/DocumentView";
 import Settings from "./pages/Settings";
 import Trash from "./pages/Trash";
+import UsersDashboard from "./pages/UsersDashboard";
 import { useConvexAuth } from "convex/react";
 
 function App() {
@@ -41,6 +42,10 @@ function App() {
         <Route
           path="/trash"
           element={<Trash />}
+        />
+        <Route
+          path="/users"
+          element={<UsersDashboard />}
         />
       </Routes>
     </Layout>
