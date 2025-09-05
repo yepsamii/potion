@@ -162,7 +162,7 @@ export default defineSchema({
     userId: v.id("users"),
     action: v.string(), // e.g., "repo_added", "token_added", "sync_performed", "access_denied"
     resource: v.string(), // e.g., "github_repository", "access_token", "document_sync"
-    resourceId: v.optional(v.string()), // ID of the resource being acted upon
+    resourceId: v.string(), // ID of the resource being acted upon (empty string if none)
     details: v.optional(v.any()), // Additional context (repository name, error message, etc.)
     ipAddress: v.optional(v.string()),
     userAgent: v.optional(v.string()),

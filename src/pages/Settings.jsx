@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import RepositoryApprovalRequest from '../components/RepositoryApprovalRequest'
+import EmailTest from '../components/EmailTest'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,14 +34,16 @@ export default function Settings() {
   const [accessToken, setAccessToken] = useState('')
   const [showRepoForm, setShowRepoForm] = useState(false)
   const [showTokenForm, setShowTokenForm] = useState('')
+  const [needsApproval, setNeedsApproval] = useState(false)
   
   // GitHub integration queries and mutations
   const githubProfile = useQuery(api.github.getGitHubProfile)
   const globalRepositories = useQuery(api.github.getGlobalRepositories)
   const userRepositoryAccess = useQuery(api.github.getUserRepositoryAccess)
+  const canAddRepo = useQuery(api.github.canAddRepositoryDirectly, repoUrl.trim() ? { repoUrl: repoUrl.trim() } : "skip")
   const connectProfile = useMutation(api.github.connectGitHubProfile)
   const addGlobalRepository = useMutation(api.github.addGlobalRepository)
-  const addUserAccessToken = useMutation(api.github.addUserAccessToken)
+  const addUserAccessToken = useAction(api.github.addUserAccessToken)
   const checkUserAccess = useAction(api.github.checkUserRepositoryAccess)
   const removeUserAccess = useMutation(api.github.removeUserAccess)
   const disconnectProfile = useMutation(api.github.disconnectGitHubProfile)
@@ -69,22 +73,45 @@ export default function Settings() {
     }
   }
 
-  // STEP 2: Add Global Repository
+  // STEP 2: Add Global Repository (with approval check)
   const handleAddGlobalRepo = async () => {
     if (!repoUrl.trim()) {
       toast.error('Please provide repository URL')
       return
     }
 
+    // Check if approval is needed first
+    if (canAddRepo && !canAddRepo.canAdd) {
+      if (canAddRepo.needsApproval) {
+        setNeedsApproval(true)
+        toast('This repository requires admin approval', { 
+          icon: '⚠️',
+          duration: 4000,
+        })
+        return
+      } else {
+        toast.error(canAddRepo.reason || 'Cannot add repository')
+        return
+      }
+    }
+
     try {
       await addGlobalRepository({ 
-        repoUrl: repoUrl.trim()
+        repoUrl: repoUrl.trim(),
+        accessToken: accessToken.trim() || undefined
       })
       toast.success('Repository added to global registry!')
       setRepoUrl('')
+      setAccessToken('')
       setShowRepoForm(false)
+      setNeedsApproval(false)
     } catch (error) {
-      toast.error(`Failed to add repository: ${error.message}`)
+      if (error.message.includes('admin approval')) {
+        setNeedsApproval(true)
+        toast.info('Admin approval required - please fill out the form below')
+      } else {
+        toast.error(`Failed to add repository: ${error.message}`)
+      }
     }
   }
 
@@ -292,14 +319,68 @@ export default function Settings() {
                           This repository will be visible to all users, but they need their own access tokens to use it.
                         </p>
                       </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="repoAccessToken">Access Token (for verification)</Label>
+                        <Input
+                          id="repoAccessToken"
+                          type="password"
+                          placeholder="ghp_your_token_here"
+                          value={accessToken}
+                          onChange={(e) => setAccessToken(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Used to verify you have access to the repository. Not stored permanently.
+                        </p>
+                      </div>
+
+                      {canAddRepo && !canAddRepo.canAdd && (
+                        <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200">
+                          <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+                            <AlertTriangle className="w-4 h-4" />
+                            <span className="text-sm font-medium">{canAddRepo.reason}</span>
+                          </div>
+                          {canAddRepo.needsApproval && (
+                            <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                              Fill out the approval request form below to proceed.
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       <div className="flex gap-2">
-                        <Button onClick={handleAddGlobalRepo} className="flex-1">
-                          Add to Global Registry
+                        <Button 
+                          onClick={handleAddGlobalRepo} 
+                          className="flex-1"
+                          disabled={canAddRepo && !canAddRepo.canAdd && !canAddRepo.needsApproval}
+                        >
+                          {canAddRepo && canAddRepo.needsApproval ? 'Request Approval' : 'Add to Global Registry'}
                         </Button>
-                        <Button variant="outline" onClick={() => setShowRepoForm(false)}>
+                        <Button variant="outline" onClick={() => {
+                          setShowRepoForm(false)
+                          setNeedsApproval(false)
+                          setRepoUrl('')
+                          setAccessToken('')
+                        }}>
                           Cancel
                         </Button>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Approval Request Form */}
+                  {needsApproval && repoUrl && (
+                    <div className="mt-4">
+                      <RepositoryApprovalRequest 
+                        repoUrl={repoUrl.trim()}
+                        accessToken={accessToken.trim()}
+                        onApprovalGranted={() => {
+                          setNeedsApproval(false)
+                          setShowRepoForm(false)
+                          setRepoUrl('')
+                          setAccessToken('')
+                        }}
+                      />
                     </div>
                   )}
 
@@ -552,6 +633,9 @@ export default function Settings() {
               
             </CardContent>
           </Card>
+
+          {/* Email Test Section */}
+          <EmailTest />
         </div>
       </div>
     </div>

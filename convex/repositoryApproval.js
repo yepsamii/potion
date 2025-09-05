@@ -31,7 +31,7 @@ export const requestRepositoryApproval = action({
     const repoName = repoMatch[2].replace('.git', '');
 
     // Get user information
-    const user = await ctx.db.get(userId);
+    const user = await ctx.runQuery(api.users.getUserById, { userId });
     if (!user) throw new Error("User not found");
 
     // Verify user has access to the repository before sending approval request
@@ -63,11 +63,10 @@ export const requestRepositoryApproval = action({
     }
 
     // Check if there's already a pending request for this repository
-    const existingRequest = await ctx.db
-      .query("repositoryApprovalRequests")
-      .withIndex("by_repo", (q) => q.eq("owner", owner).eq("repoName", repoName))
-      .filter((q) => q.eq(q.field("status"), "pending"))
-      .first();
+    const existingRequest = await ctx.runQuery(api.repositoryApproval.checkExistingApprovalRequest, {
+      owner,
+      repoName,
+    });
 
     if (existingRequest) {
       throw new Error("There is already a pending approval request for this repository.");
@@ -78,18 +77,15 @@ export const requestRepositoryApproval = action({
     const now = Date.now();
     const expiresAt = now + (48 * 60 * 60 * 1000); // 48 hours from now
 
-    const requestId = await ctx.db.insert("repositoryApprovalRequests", {
-      requesterId: userId,
-      repoUrl: `https://github.com/${owner}/${repoName}`,
+    const requestId = await ctx.runMutation(api.repositoryApproval.createApprovalRequest, {
+      userId,
       owner,
       repoName,
+      repoUrl: `https://github.com/${owner}/${repoName}`,
       justification: justification?.trim() || null,
-      status: "pending",
       adminEmail,
       approvalToken,
       expiresAt,
-      createdAt: now,
-      updatedAt: now,
     });
 
     // Generate approval URLs
@@ -115,21 +111,6 @@ export const requestRepositoryApproval = action({
 
       console.log(`📧 Approval email sent:`, emailResult);
 
-      // Log the security event
-      await ctx.db.insert("securityAuditLog", {
-        userId,
-        action: "approval_requested",
-        resource: "repository_approval",
-        resourceId: requestId,
-        details: {
-          repositoryUrl: `https://github.com/${owner}/${repoName}`,
-          adminEmail,
-          emailProvider: emailResult.provider,
-        },
-        success: true,
-        timestamp: now,
-      });
-
       return {
         success: true,
         message: `Approval request sent to admin (${adminEmail}). You'll be notified when approved.`,
@@ -140,7 +121,7 @@ export const requestRepositoryApproval = action({
       console.error("Failed to send approval email:", error);
       
       // Clean up the request since email failed
-      await ctx.db.delete(requestId);
+      await ctx.runMutation(api.repositoryApproval.deleteApprovalRequest, { requestId });
       
       throw new Error(`Failed to send approval email: ${error.message}`);
     }
@@ -318,5 +299,84 @@ export const cleanupExpiredRequests = mutation({
 
     console.log(`🧹 Cleaned up ${expiredRequests.length} expired approval requests`);
     return { cleaned: expiredRequests.length };
+  },
+});
+
+// Helper query to check for existing approval requests
+export const checkExistingApprovalRequest = query({
+  args: {
+    owner: v.string(),
+    repoName: v.string(),
+  },
+  handler: async (ctx, { owner, repoName }) => {
+    const existingRequest = await ctx.db
+      .query("repositoryApprovalRequests")
+      .withIndex("by_repo", (q) => q.eq("owner", owner).eq("repoName", repoName))
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .first();
+    
+    return existingRequest;
+  },
+});
+
+// Helper mutation to create approval request
+export const createApprovalRequest = mutation({
+  args: {
+    userId: v.id("users"),
+    owner: v.string(),
+    repoName: v.string(),
+    repoUrl: v.string(),
+    justification: v.optional(v.string()),
+    adminEmail: v.string(),
+    approvalToken: v.string(),
+    expiresAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { userId, owner, repoName, repoUrl, justification, adminEmail, approvalToken, expiresAt } = args;
+    const now = Date.now();
+
+    const requestId = await ctx.db.insert("repositoryApprovalRequests", {
+      requesterId: userId,
+      repoUrl,
+      owner,
+      repoName,
+      justification,
+      status: "pending",
+      adminEmail,
+      approvalToken,
+      expiresAt,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Log the request creation
+    await ctx.db.insert("securityAuditLog", {
+      userId,
+      action: "request_repo_approval",
+      resource: "repository_approval",
+      resourceId: requestId,
+      details: {
+        repoUrl,
+        owner,
+        repoName,
+        adminEmail,
+        expiresAt: new Date(expiresAt).toISOString(),
+      },
+      success: true,
+      timestamp: now,
+    });
+
+    return requestId;
+  },
+});
+
+// Helper mutation to delete approval request
+export const deleteApprovalRequest = mutation({
+  args: {
+    requestId: v.id("repositoryApprovalRequests"),
+  },
+  handler: async (ctx, { requestId }) => {
+    await ctx.db.delete(requestId);
+    return { success: true };
   },
 });

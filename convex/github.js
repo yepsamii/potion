@@ -14,7 +14,7 @@ async function logSecurityEvent(ctx, action, resource, success, details = {}) {
       userId,
       action,
       resource,
-      resourceId: details.resourceId || null,
+      resourceId: details.resourceId || "",
       details: {
         ...details,
         timestamp_iso: new Date().toISOString(),
@@ -297,7 +297,7 @@ export const getGlobalRepositories = query({
 });
 
 // STEP 3: Add User Access Token for a Repository (with verification)
-export const addUserAccessToken = mutation({
+export const addUserAccessToken = action({
   args: {
     repositoryId: v.id("githubRepositories"),
     accessToken: v.string(),
@@ -307,7 +307,7 @@ export const addUserAccessToken = mutation({
     if (!userId) throw new Error("Not authenticated");
 
     // Check if repository exists
-    const repository = await ctx.db.get(repositoryId);
+    const repository = await ctx.runQuery(api.github.getRepository, { repositoryId });
     if (!repository) throw new Error("Repository not found");
 
     // SECURITY: Verify the user actually has access to this repository
@@ -318,70 +318,167 @@ export const addUserAccessToken = mutation({
       console.log(`✅ Access verified for ${repository.owner}/${repository.repoName}:`, accessInfo);
       
       // AUDIT: Log successful token verification
-      await logSecurityEvent(ctx, "token_verification", "access_token", true, {
-        repositoryId: repositoryId,
-        repositoryUrl: repository.repoUrl,
-        accessLevel: accessInfo.accessLevel,
-        isPrivate: accessInfo.isPrivate,
+      await ctx.runMutation(api.github.logSecurityEventMutation, {
+        userId,
+        action: "token_verification",
+        resource: "access_token",
+        success: true,
+        details: {
+          repositoryId: repositoryId,
+          repositoryUrl: repository.repoUrl,
+          accessLevel: accessInfo.accessLevel,
+          isPrivate: accessInfo.isPrivate,
+        },
       });
     } catch (error) {
       console.log(`❌ Access verification failed for ${repository.owner}/${repository.repoName}:`, error.message);
       
       // AUDIT: Log failed token verification
-      await logSecurityEvent(ctx, "token_verification", "access_token", false, {
-        repositoryId: repositoryId,
-        repositoryUrl: repository.repoUrl,
-        error: error.message,
+      await ctx.runMutation(api.github.logSecurityEventMutation, {
+        userId,
+        action: "token_verification",
+        resource: "access_token",
+        success: false,
+        details: {
+          repositoryId: repositoryId,
+          repositoryUrl: repository.repoUrl,
+          error: error.message,
+        },
       });
       
       throw new Error(`Access verification failed: ${error.message}`);
     }
 
     // Check if user already has access record for this repo
-    const existing = await ctx.db
+    const existing = await ctx.runQuery(api.github.getUserAccessRecord, {
+      userId,
+      repositoryId,
+    });
+
+    if (existing) {
+      const result = await ctx.runMutation(api.github.updateUserAccessToken, {
+        accessId: existing._id,
+        userId,
+        repositoryId,
+        accessToken,
+      });
+      
+      return result;
+    } else {
+      const result = await ctx.runMutation(api.github.createUserAccessToken, {
+        userId,
+        repositoryId,
+        accessToken,
+      });
+      
+      return result;
+    }
+  },
+});
+
+// Helper mutations for addUserAccessToken action
+export const getRepository = query({
+  args: { repositoryId: v.id("githubRepositories") },
+  handler: async (ctx, { repositoryId }) => {
+    return await ctx.db.get(repositoryId);
+  },
+});
+
+export const getUserAccessRecord = query({
+  args: { 
+    userId: v.id("users"), 
+    repositoryId: v.id("githubRepositories") 
+  },
+  handler: async (ctx, { userId, repositoryId }) => {
+    return await ctx.db
       .query("githubUserAccess")
       .withIndex("by_user_repository", (q) => 
         q.eq("userId", userId).eq("repositoryId", repositoryId)
       )
       .first();
+  },
+});
 
+export const updateUserAccessToken = mutation({
+  args: {
+    accessId: v.id("githubUserAccess"),
+    userId: v.id("users"),
+    repositoryId: v.id("githubRepositories"),
+    accessToken: v.string(),
+  },
+  handler: async (ctx, { accessId, userId, repositoryId, accessToken }) => {
     const now = Date.now();
     const accessData = {
       userId,
       repositoryId,
-      accessToken: encrypt(accessToken), // Encrypt the token before storing
-      hasAccess: undefined, // Will be checked in next step
+      accessToken: encrypt(accessToken),
+      hasAccess: undefined,
       accessLevel: undefined,
       lastChecked: undefined,
       updatedAt: now,
     };
 
-    if (existing) {
-      const result = await ctx.db.patch(existing._id, accessData);
-      
-      // AUDIT: Log token update
-      await logSecurityEvent(ctx, "token_updated", "access_token", true, {
-        repositoryId: repositoryId,
-        repositoryUrl: repository.repoUrl,
-        accessId: existing._id,
-      });
-      
-      return result;
-    } else {
-      const result = await ctx.db.insert("githubUserAccess", {
-        ...accessData,
-        createdAt: now,
-      });
-      
-      // AUDIT: Log new token addition
-      await logSecurityEvent(ctx, "token_added", "access_token", true, {
-        repositoryId: repositoryId,
-        repositoryUrl: repository.repoUrl,
-        accessId: result,
-      });
-      
-      return result;
-    }
+    const result = await ctx.db.patch(accessId, accessData);
+    
+    // Get repository info for logging
+    const repository = await ctx.db.get(repositoryId);
+    
+    // AUDIT: Log token update
+    await logSecurityEvent(ctx, "token_updated", "access_token", true, {
+      repositoryId: repositoryId,
+      repositoryUrl: repository?.repoUrl,
+      accessId: accessId,
+    });
+
+    return result;
+  },
+});
+
+export const createUserAccessToken = mutation({
+  args: {
+    userId: v.id("users"),
+    repositoryId: v.id("githubRepositories"),
+    accessToken: v.string(),
+  },
+  handler: async (ctx, { userId, repositoryId, accessToken }) => {
+    const now = Date.now();
+    const accessData = {
+      userId,
+      repositoryId,
+      accessToken: encrypt(accessToken),
+      hasAccess: undefined,
+      accessLevel: undefined,
+      lastChecked: undefined,
+      updatedAt: now,
+      createdAt: now,
+    };
+
+    const result = await ctx.db.insert("githubUserAccess", accessData);
+    
+    // Get repository info for logging
+    const repository = await ctx.db.get(repositoryId);
+    
+    // AUDIT: Log new token addition
+    await logSecurityEvent(ctx, "token_added", "access_token", true, {
+      repositoryId: repositoryId,
+      repositoryUrl: repository?.repoUrl,
+      accessId: result,
+    });
+
+    return result;
+  },
+});
+
+export const logSecurityEventMutation = mutation({
+  args: {
+    userId: v.id("users"),
+    action: v.string(),
+    resource: v.string(),
+    success: v.boolean(),
+    details: v.any(),
+  },
+  handler: async (ctx, { userId, action, resource, success, details }) => {
+    await logSecurityEvent(ctx, action, resource, success, details);
   },
 });
 
@@ -499,39 +596,6 @@ export const checkUserRepositoryAccess = action({
   },
 });
 
-// Helper query to get a single repository
-export const getRepository = query({
-  args: { repositoryId: v.id("githubRepositories") },
-  handler: async (ctx, { repositoryId }) => {
-    return await ctx.db.get(repositoryId);
-  },
-});
-
-// Helper query to get user's access record for a repository
-export const getUserAccessRecord = query({
-  args: { 
-    userId: v.id("users"),
-    repositoryId: v.id("githubRepositories") 
-  },
-  handler: async (ctx, { userId, repositoryId }) => {
-    const record = await ctx.db
-      .query("githubUserAccess")
-      .withIndex("by_user_repository", (q) => 
-        q.eq("userId", userId).eq("repositoryId", repositoryId)
-      )
-      .first();
-    
-    if (record && record.accessToken) {
-      // Decrypt the token before returning
-      return {
-        ...record,
-        accessToken: decrypt(record.accessToken)
-      };
-    }
-    
-    return record;
-  },
-});
 
 // Helper mutation to update user's access status
 export const updateUserAccess = mutation({

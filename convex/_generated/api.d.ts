@@ -23,6 +23,7 @@ import type * as lib_email from "../lib/email.js";
 import type * as lib_encryption from "../lib/encryption.js";
 import type * as migrations from "../migrations.js";
 import type * as repositoryApproval from "../repositoryApproval.js";
+import type * as testEmail from "../testEmail.js";
 import type * as users from "../users.js";
 import type * as workspaces from "../workspaces.js";
 
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   "lib/encryption": typeof lib_encryption;
   migrations: typeof migrations;
   repositoryApproval: typeof repositoryApproval;
+  testEmail: typeof testEmail;
   users: typeof users;
   workspaces: typeof workspaces;
 }>;
