@@ -390,12 +390,22 @@ export const getUserAccessRecord = query({
     repositoryId: v.id("githubRepositories") 
   },
   handler: async (ctx, { userId, repositoryId }) => {
-    return await ctx.db
+    const record = await ctx.db
       .query("githubUserAccess")
       .withIndex("by_user_repository", (q) => 
         q.eq("userId", userId).eq("repositoryId", repositoryId)
       )
       .first();
+    
+    if (record && record.accessToken) {
+      // Decrypt the token before returning
+      return {
+        ...record,
+        accessToken: decrypt(record.accessToken)
+      };
+    }
+    
+    return record;
   },
 });
 
@@ -679,6 +689,7 @@ export const disconnectGitHubProfile = mutation({
 // Helper function to validate token scopes
 async function validateTokenScopes(token) {
   console.log(`🔍 Validating token scopes...`);
+  console.log(`🔑 Token length: ${token ? token.length : 'undefined'}, starts with: ${token ? token.substring(0, 10) + '...' : 'N/A'}`);
   
   const response = await fetch(`https://api.github.com/user`, {
     method: 'HEAD', // Use HEAD to get headers only
@@ -690,7 +701,14 @@ async function validateTokenScopes(token) {
   });
 
   if (!response.ok) {
-    throw new Error("Invalid token or token validation failed");
+    console.log(`❌ GitHub API error: ${response.status} ${response.statusText}`);
+    if (response.status === 401) {
+      throw new Error("Invalid GitHub token - please check your token is correct");
+    } else if (response.status === 403) {
+      throw new Error("GitHub token lacks required permissions - ensure it has 'repo' or 'public_repo' scope");
+    } else {
+      throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+    }
   }
 
   // Get OAuth scopes from response headers
