@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, forwardRef, useImperativeHandle } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
@@ -11,7 +11,7 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/react/style.css";
 import "@blocknote/mantine/style.css";
 
-export default function Editor({ content, onChange, editable = true }) {
+const Editor = forwardRef(({ content, onChange, editable = true }, ref) => {
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState("light");
   const storeFile = useMutation(api.files.storeFile);
@@ -69,6 +69,15 @@ export default function Editor({ content, onChange, editable = true }) {
     },
     // Let BlockNote use its default slash menu items
   });
+
+  // Expose focus method through ref
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      if (editor) {
+        editor.focus()
+      }
+    }
+  }), [editor]);
 
   useEffect(() => {
     setMounted(true);
@@ -154,4 +163,8 @@ export default function Editor({ content, onChange, editable = true }) {
       </div>
     </div>
   );
-}
+});
+
+Editor.displayName = 'Editor';
+
+export default Editor;

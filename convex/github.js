@@ -2,6 +2,33 @@ import { v } from "convex/values";
 import { action, mutation, query } from "./_generated/server";
 import { api } from "./_generated/api.js";
 import { auth } from "./auth.js";
+import { encrypt, decrypt } from "./lib/encryption.js";
+
+// SECURITY: Audit logging helper function
+async function logSecurityEvent(ctx, action, resource, success, details = {}) {
+  try {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return; // Can't log without user context
+    
+    await ctx.db.insert("securityAuditLog", {
+      userId,
+      action,
+      resource,
+      resourceId: details.resourceId || null,
+      details: {
+        ...details,
+        timestamp_iso: new Date().toISOString(),
+      },
+      success,
+      timestamp: Date.now(),
+    });
+    
+    console.log(`🔒 Security audit: ${userId} ${action} on ${resource} - ${success ? 'SUCCESS' : 'FAILED'}`);
+  } catch (error) {
+    console.error('Failed to log security event:', error);
+    // Don't throw - logging failures shouldn't break the main operation
+  }
+}
 
 // STEP 1: Connect GitHub Profile (unchanged)
 export const connectGitHubProfile = mutation({
@@ -52,12 +79,13 @@ export const getGitHubProfile = query({
   },
 });
 
-// STEP 2: Add Repository to Global Registry
+// STEP 2: Add Repository to Global Registry (with admin approval)
 export const addGlobalRepository = mutation({
   args: {
     repoUrl: v.string(),
+    accessToken: v.optional(v.string()), // Optional token for verification
   },
-  handler: async (ctx, { repoUrl }) => {
+  handler: async (ctx, { repoUrl, accessToken }) => {
     const userId = await auth.getUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
@@ -78,23 +106,183 @@ export const addGlobalRepository = mutation({
       )
       .first();
 
-    const now = Date.now();
-
     if (existing) {
-      // Repository already exists, just return it
-      return existing;
-    } else {
-      // Add new repository to global registry
-      return await ctx.db.insert("githubRepositories", {
-        repoUrl: `https://github.com/${owner}/${repoName}`,
+      // AUDIT: Log repository already exists
+      await logSecurityEvent(ctx, "repo_add_existing", "github_repository", true, {
+        repositoryId: existing._id,
+        repositoryUrl: `https://github.com/${owner}/${repoName}`,
         owner,
         repoName,
-        addedBy: userId,
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
       });
+      
+      // Repository already exists, just return it
+      return existing;
     }
+
+    // SECURITY ENHANCEMENT: Check if admin approval is required
+    const requiresApproval = process.env.REQUIRE_REPO_APPROVAL !== 'false'; // Default to true
+    
+    if (requiresApproval) {
+      // Check if there's an approved request for this repository
+      const approvedRequest = await ctx.db
+        .query("repositoryApprovalRequests")
+        .withIndex("by_repo", (q) => q.eq("owner", owner).eq("repoName", repoName))
+        .filter((q) => q.eq(q.field("status"), "approved"))
+        .first();
+
+      if (!approvedRequest) {
+        // AUDIT: Log attempt to add repository without approval
+        await logSecurityEvent(ctx, "repo_add_blocked", "github_repository", false, {
+          repositoryUrl: `https://github.com/${owner}/${repoName}`,
+          owner,
+          repoName,
+          reason: "Admin approval required",
+        });
+
+        throw new Error("This repository requires admin approval before it can be added. Please request approval first.");
+      }
+
+      // Verify the approved request is for the current user
+      if (approvedRequest.requesterId !== userId) {
+        // AUDIT: Log unauthorized attempt to use someone else's approval
+        await logSecurityEvent(ctx, "repo_add_unauthorized", "github_repository", false, {
+          repositoryUrl: `https://github.com/${owner}/${repoName}`,
+          owner,
+          repoName,
+          reason: "Approval belongs to different user",
+          approvalRequesterId: approvedRequest.requesterId,
+        });
+
+        throw new Error("This repository was approved for a different user. Please request your own approval.");
+      }
+    }
+
+    // SECURITY: If access token is provided, verify repository exists and is accessible
+    if (accessToken) {
+      console.log(`🔐 Verifying repository exists: ${owner}/${repoName}`);
+      try {
+        await verifyRepoAccess(accessToken, owner, repoName);
+        console.log(`✅ Repository verified: ${owner}/${repoName}`);
+        
+        // AUDIT: Log successful repository verification
+        await logSecurityEvent(ctx, "repo_verification", "github_repository", true, {
+          repositoryUrl: `https://github.com/${owner}/${repoName}`,
+          owner,
+          repoName,
+        });
+      } catch (error) {
+        console.log(`❌ Repository verification failed: ${owner}/${repoName}:`, error.message);
+        
+        // AUDIT: Log failed repository verification
+        await logSecurityEvent(ctx, "repo_verification", "github_repository", false, {
+          repositoryUrl: `https://github.com/${owner}/${repoName}`,
+          owner,
+          repoName,
+          error: error.message,
+        });
+        
+        throw new Error(`Repository verification failed: ${error.message}. Make sure the repository exists and you have access to it.`);
+      }
+    }
+
+    // Add new repository to global registry
+    const now = Date.now();
+    const newRepo = await ctx.db.insert("githubRepositories", {
+      repoUrl: `https://github.com/${owner}/${repoName}`,
+      owner,
+      repoName,
+      addedBy: userId,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    
+    // AUDIT: Log new repository addition
+    await logSecurityEvent(ctx, "repo_added", "github_repository", true, {
+      repositoryId: newRepo,
+      repositoryUrl: `https://github.com/${owner}/${repoName}`,
+      owner,
+      repoName,
+      approvalRequired: requiresApproval,
+    });
+    
+    return newRepo;
+  },
+});
+
+// Helper function to check if user can add repositories without approval
+export const canAddRepositoryDirectly = query({
+  args: {
+    repoUrl: v.string(),
+  },
+  handler: async (ctx, { repoUrl }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return { canAdd: false, reason: "Not authenticated" };
+
+    const requiresApproval = process.env.REQUIRE_REPO_APPROVAL !== 'false';
+    
+    if (!requiresApproval) {
+      return { canAdd: true, reason: "Approval not required" };
+    }
+
+    // Parse repository URL
+    const repoMatch = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (!repoMatch) {
+      return { canAdd: false, reason: "Invalid repository URL" };
+    }
+
+    const owner = repoMatch[1];
+    const repoName = repoMatch[2].replace('.git', '');
+
+    // Check for existing repository
+    const existing = await ctx.db
+      .query("githubRepositories")
+      .withIndex("by_owner_repo", (q) => 
+        q.eq("owner", owner).eq("repoName", repoName)
+      )
+      .first();
+
+    if (existing) {
+      return { canAdd: true, reason: "Repository already exists" };
+    }
+
+    // Check for approved request
+    const approvedRequest = await ctx.db
+      .query("repositoryApprovalRequests")
+      .withIndex("by_repo", (q) => q.eq("owner", owner).eq("repoName", repoName))
+      .filter((q) => q.eq(q.field("status"), "approved"))
+      .filter((q) => q.eq(q.field("requesterId"), userId))
+      .first();
+
+    if (approvedRequest) {
+      return { canAdd: true, reason: "Admin approval granted" };
+    }
+
+    // Check for pending request
+    const pendingRequest = await ctx.db
+      .query("repositoryApprovalRequests")
+      .withIndex("by_repo", (q) => q.eq("owner", owner).eq("repoName", repoName))
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .filter((q) => q.eq(q.field("requesterId"), userId))
+      .first();
+
+    if (pendingRequest) {
+      return { 
+        canAdd: false, 
+        reason: "Approval request pending",
+        pendingRequest: {
+          id: pendingRequest._id,
+          createdAt: pendingRequest.createdAt,
+          expiresAt: pendingRequest.expiresAt,
+        }
+      };
+    }
+
+    return { 
+      canAdd: false, 
+      reason: "Admin approval required",
+      needsApproval: true 
+    };
   },
 });
 
@@ -108,7 +296,7 @@ export const getGlobalRepositories = query({
   },
 });
 
-// STEP 3: Add User Access Token for a Repository
+// STEP 3: Add User Access Token for a Repository (with verification)
 export const addUserAccessToken = mutation({
   args: {
     repositoryId: v.id("githubRepositories"),
@@ -122,6 +310,33 @@ export const addUserAccessToken = mutation({
     const repository = await ctx.db.get(repositoryId);
     if (!repository) throw new Error("Repository not found");
 
+    // SECURITY: Verify the user actually has access to this repository
+    console.log(`🔐 Verifying access to ${repository.owner}/${repository.repoName} before storing token`);
+    
+    try {
+      const accessInfo = await verifyRepoAccess(accessToken, repository.owner, repository.repoName);
+      console.log(`✅ Access verified for ${repository.owner}/${repository.repoName}:`, accessInfo);
+      
+      // AUDIT: Log successful token verification
+      await logSecurityEvent(ctx, "token_verification", "access_token", true, {
+        repositoryId: repositoryId,
+        repositoryUrl: repository.repoUrl,
+        accessLevel: accessInfo.accessLevel,
+        isPrivate: accessInfo.isPrivate,
+      });
+    } catch (error) {
+      console.log(`❌ Access verification failed for ${repository.owner}/${repository.repoName}:`, error.message);
+      
+      // AUDIT: Log failed token verification
+      await logSecurityEvent(ctx, "token_verification", "access_token", false, {
+        repositoryId: repositoryId,
+        repositoryUrl: repository.repoUrl,
+        error: error.message,
+      });
+      
+      throw new Error(`Access verification failed: ${error.message}`);
+    }
+
     // Check if user already has access record for this repo
     const existing = await ctx.db
       .query("githubUserAccess")
@@ -134,7 +349,7 @@ export const addUserAccessToken = mutation({
     const accessData = {
       userId,
       repositoryId,
-      accessToken, // In production, this should be encrypted
+      accessToken: encrypt(accessToken), // Encrypt the token before storing
       hasAccess: undefined, // Will be checked in next step
       accessLevel: undefined,
       lastChecked: undefined,
@@ -142,12 +357,30 @@ export const addUserAccessToken = mutation({
     };
 
     if (existing) {
-      return await ctx.db.patch(existing._id, accessData);
+      const result = await ctx.db.patch(existing._id, accessData);
+      
+      // AUDIT: Log token update
+      await logSecurityEvent(ctx, "token_updated", "access_token", true, {
+        repositoryId: repositoryId,
+        repositoryUrl: repository.repoUrl,
+        accessId: existing._id,
+      });
+      
+      return result;
     } else {
-      return await ctx.db.insert("githubUserAccess", {
+      const result = await ctx.db.insert("githubUserAccess", {
         ...accessData,
         createdAt: now,
       });
+      
+      // AUDIT: Log new token addition
+      await logSecurityEvent(ctx, "token_added", "access_token", true, {
+        repositoryId: repositoryId,
+        repositoryUrl: repository.repoUrl,
+        accessId: result,
+      });
+      
+      return result;
     }
   },
 });
@@ -281,12 +514,22 @@ export const getUserAccessRecord = query({
     repositoryId: v.id("githubRepositories") 
   },
   handler: async (ctx, { userId, repositoryId }) => {
-    return await ctx.db
+    const record = await ctx.db
       .query("githubUserAccess")
       .withIndex("by_user_repository", (q) => 
         q.eq("userId", userId).eq("repositoryId", repositoryId)
       )
       .first();
+    
+    if (record && record.accessToken) {
+      // Decrypt the token before returning
+      return {
+        ...record,
+        accessToken: decrypt(record.accessToken)
+      };
+    }
+    
+    return record;
   },
 });
 
@@ -369,9 +612,78 @@ export const disconnectGitHubProfile = mutation({
   },
 });
 
+// Helper function to validate token scopes
+async function validateTokenScopes(token) {
+  console.log(`🔍 Validating token scopes...`);
+  
+  const response = await fetch(`https://api.github.com/user`, {
+    method: 'HEAD', // Use HEAD to get headers only
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Accept": "application/vnd.github.v3+json",
+      "User-Agent": "Potion-App/1.0"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error("Invalid token or token validation failed");
+  }
+
+  // Get OAuth scopes from response headers
+  const scopes = response.headers.get('X-OAuth-Scopes') || '';
+  const scopeList = scopes.split(',').map(s => s.trim()).filter(s => s);
+  
+  console.log(`📋 Token scopes:`, scopeList);
+
+  // Define allowed scopes
+  const allowedScopes = [
+    'repo', 'public_repo', 'repo:status', 'repo_deployment',
+    'user', 'user:email', 'user:follow', 'read:user'
+  ];
+
+  // Define dangerous scopes that should be rejected
+  const dangerousScopes = [
+    'delete_repo', 'admin:org', 'admin:public_key', 'admin:repo_hook',
+    'admin:org_hook', 'gist', 'notifications', 'admin:gpg_key'
+  ];
+
+  // Check for dangerous scopes
+  const foundDangerousScopes = scopeList.filter(scope => 
+    dangerousScopes.some(dangerous => scope.includes(dangerous))
+  );
+
+  if (foundDangerousScopes.length > 0) {
+    throw new Error(`Token has excessive permissions: ${foundDangerousScopes.join(', ')}. Please use a token with minimal required scopes (repo or public_repo).`);
+  }
+
+  // Check for required scopes
+  const hasRepoAccess = scopeList.some(scope => 
+    scope === 'repo' || scope === 'public_repo'
+  );
+
+  if (!hasRepoAccess) {
+    throw new Error("Token must have 'repo' scope for private repositories or 'public_repo' scope for public repositories.");
+  }
+
+  return {
+    scopes: scopeList,
+    hasRepoAccess,
+    isMinimal: scopeList.length <= 3, // Consider minimal if 3 or fewer scopes
+  };
+}
+
 // Helper function to verify repository access
 async function verifyRepoAccess(token, owner, repo) {
   console.log(`🔍 Checking access for ${owner}/${repo} with GitHub API...`);
+  
+  // SECURITY: First validate token scopes
+  try {
+    const scopeValidation = await validateTokenScopes(token);
+    console.log(`✅ Token scope validation passed:`, scopeValidation);
+  } catch (error) {
+    console.log(`❌ Token scope validation failed:`, error.message);
+    throw error; // Re-throw scope validation errors
+  }
   
   const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
     headers: {
@@ -438,6 +750,12 @@ export const syncDocumentToRepository = action({
     const repository = await ctx.runQuery(api.github.getRepository, { repositoryId });
     if (!repository) throw new Error("Repository not found");
 
+    // Check if this document has been synced to this repository before
+    const existingSync = await ctx.runQuery(api.github.getDocumentSync, {
+      documentId,
+      repositoryId,
+    });
+
     // Get user's access record for this repository
     console.log(`🔍 Looking up user access for userId: ${userId}, repositoryId: ${repositoryId}`);
     const userAccess = await ctx.runQuery(api.github.getUserAccessRecord, { 
@@ -478,8 +796,18 @@ export const syncDocumentToRepository = action({
       // Convert document content to Markdown (simplified for now)
       const markdown = convertToMarkdown(document.content);
       
-      // Prepare file content
-      const fileName = filePath || `docs/${document.title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-').toLowerCase()}.md`;
+      // Determine file path - use existing sync path if available, otherwise use provided or default
+      let fileName;
+      if (existingSync && !filePath) {
+        // Use existing file path if no new path is provided
+        fileName = existingSync.filePath;
+        console.log(`📄 Updating existing file at: ${fileName}`);
+      } else {
+        // Use provided path or generate default
+        fileName = filePath || `docs/${document.title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-').toLowerCase()}.md`;
+        console.log(`📄 ${existingSync ? 'Changing file path to' : 'Creating new file at'}: ${fileName}`);
+      }
+      
       const fileContent = `# ${document.title}\n\n${markdown}\n\n---\n*Last updated: ${new Date().toISOString()}*\n*Synced from Potion*`;
 
       // Sync to GitHub using user's token
@@ -498,16 +826,52 @@ export const syncDocumentToRepository = action({
         accessId: userAccess._id 
       });
 
+      // Save or update the document sync tracking
+      if (existingSync) {
+        await ctx.runMutation(api.github.updateDocumentSync, {
+          syncId: existingSync._id,
+          filePath: fileName,
+          lastCommitSha: response.commit.sha,
+        });
+      } else {
+        await ctx.runMutation(api.github.createDocumentSync, {
+          documentId,
+          repositoryId,
+          filePath: fileName,
+          lastCommitSha: response.commit.sha,
+        });
+      }
+
       console.log(`✅ Document synced successfully to ${repository.owner}/${repository.repoName}`);
+
+      // AUDIT: Log successful document sync
+      await logSecurityEvent(ctx, existingSync ? "document_updated" : "document_synced", "document_sync", true, {
+        documentId,
+        repositoryId,
+        repositoryUrl: repository.repoUrl,
+        filePath: fileName,
+        commitSha: response.commit.sha,
+        isUpdate: !!existingSync,
+      });
 
       return { 
         success: true, 
         url: response.content.html_url,
         filePath: fileName,
         commitSha: response.commit.sha,
+        isUpdate: !!existingSync,
       };
     } catch (error) {
       console.error("GitHub sync error:", error);
+      
+      // AUDIT: Log failed document sync
+      await logSecurityEvent(ctx, "document_sync_failed", "document_sync", false, {
+        documentId,
+        repositoryId,
+        repositoryUrl: repository.repoUrl,
+        error: error.message,
+      });
+      
       throw new Error(`Failed to sync to GitHub: ${error.message}`);
     }
   },
@@ -642,6 +1006,188 @@ function convertToMarkdown(content) {
     }
   }).join('\n\n');
 }
+
+// Query to get existing document sync
+export const getDocumentSync = query({
+  args: {
+    documentId: v.id("documents"),
+    repositoryId: v.id("githubRepositories"),
+  },
+  handler: async (ctx, { documentId, repositoryId }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return null;
+
+    return await ctx.db
+      .query("githubDocumentSync")
+      .withIndex("by_document_repository", (q) =>
+        q.eq("documentId", documentId).eq("repositoryId", repositoryId)
+      )
+      .first();
+  },
+});
+
+// Create new document sync tracking
+export const createDocumentSync = mutation({
+  args: {
+    documentId: v.id("documents"),
+    repositoryId: v.id("githubRepositories"),
+    filePath: v.string(),
+    lastCommitSha: v.optional(v.string()),
+  },
+  handler: async (ctx, { documentId, repositoryId, filePath, lastCommitSha }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const now = Date.now();
+    return await ctx.db.insert("githubDocumentSync", {
+      documentId,
+      repositoryId,
+      userId,
+      filePath,
+      lastCommitSha,
+      lastSyncedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+// Update existing document sync
+export const updateDocumentSync = mutation({
+  args: {
+    syncId: v.id("githubDocumentSync"),
+    filePath: v.string(),
+    lastCommitSha: v.optional(v.string()),
+  },
+  handler: async (ctx, { syncId, filePath, lastCommitSha }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const sync = await ctx.db.get(syncId);
+    if (!sync || sync.userId !== userId) {
+      throw new Error("Sync record not found or unauthorized");
+    }
+
+    return await ctx.db.patch(syncId, {
+      filePath,
+      lastCommitSha,
+      lastSyncedAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+// Get all synced documents for a repository
+export const getRepositorySyncedDocuments = query({
+  args: {
+    repositoryId: v.id("githubRepositories"),
+  },
+  handler: async (ctx, { repositoryId }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return [];
+
+    const syncs = await ctx.db
+      .query("githubDocumentSync")
+      .withIndex("by_repository", (q) => q.eq("repositoryId", repositoryId))
+      .collect();
+
+    // Get document details for each sync
+    const syncedDocsWithDetails = await Promise.all(
+      syncs.map(async (sync) => {
+        const document = await ctx.db.get(sync.documentId);
+        return {
+          ...sync,
+          documentTitle: document?.title || "Untitled",
+          documentDeleted: document?.isDeleted || false,
+        };
+      })
+    );
+
+    return syncedDocsWithDetails;
+  },
+});
+
+// Get all repositories a document has been synced to
+export const getDocumentSyncedRepositories = query({
+  args: {
+    documentId: v.id("documents"),
+  },
+  handler: async (ctx, { documentId }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return [];
+
+    const syncs = await ctx.db
+      .query("githubDocumentSync")
+      .withIndex("by_document", (q) => q.eq("documentId", documentId))
+      .collect();
+
+    // Get repository details for each sync
+    const syncsWithRepoDetails = await Promise.all(
+      syncs.map(async (sync) => {
+        const repository = await ctx.db.get(sync.repositoryId);
+        return {
+          ...sync,
+          repository: repository ? {
+            owner: repository.owner,
+            repoName: repository.repoName,
+            repoUrl: repository.repoUrl,
+          } : null,
+        };
+      })
+    );
+
+    return syncsWithRepoDetails.filter(sync => sync.repository !== null);
+  },
+});
+
+// Get security audit logs (for user's own actions)
+export const getUserSecurityAuditLogs = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { limit = 50 }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return [];
+
+    const logs = await ctx.db
+      .query("securityAuditLog")
+      .withIndex("by_user_timestamp", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(Math.min(limit, 100)); // Cap at 100 for performance
+
+    return logs;
+  },
+});
+
+// Get recent security events across all users (admin function - would need admin check)
+export const getRecentSecurityEvents = query({
+  args: {
+    limit: v.optional(v.number()),
+    action: v.optional(v.string()),
+  },
+  handler: async (ctx, { limit = 20, action }) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) return [];
+
+    // TODO: Add admin check here in production
+    // For now, return only user's own events for security
+    let query = ctx.db
+      .query("securityAuditLog")
+      .withIndex("by_user_timestamp", (q) => q.eq("userId", userId))
+      .order("desc");
+
+    if (action) {
+      // If filtering by action, use different index
+      query = ctx.db
+        .query("securityAuditLog")
+        .withIndex("by_action", (q) => q.eq("action", action))
+        .filter((q) => q.eq(q.field("userId"), userId))
+        .order("desc");
+    }
+
+    return await query.take(Math.min(limit, 50));
+  },
+});
 
 // Remove user's access to a repository
 export const removeUserAccess = mutation({

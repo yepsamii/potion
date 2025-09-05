@@ -19,7 +19,10 @@ import type * as files from "../files.js";
 import type * as folders from "../folders.js";
 import type * as github from "../github.js";
 import type * as http from "../http.js";
+import type * as lib_email from "../lib/email.js";
+import type * as lib_encryption from "../lib/encryption.js";
 import type * as migrations from "../migrations.js";
+import type * as repositoryApproval from "../repositoryApproval.js";
 import type * as users from "../users.js";
 import type * as workspaces from "../workspaces.js";
 
@@ -38,7 +41,10 @@ declare const fullApi: ApiFromModules<{
   folders: typeof folders;
   github: typeof github;
   http: typeof http;
+  "lib/email": typeof lib_email;
+  "lib/encryption": typeof lib_encryption;
   migrations: typeof migrations;
+  repositoryApproval: typeof repositoryApproval;
   users: typeof users;
   workspaces: typeof workspaces;
 }>;

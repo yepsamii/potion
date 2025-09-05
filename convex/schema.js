@@ -121,6 +121,22 @@ export default defineSchema({
     .index("by_repository", ["repositoryId"])
     .index("by_user_repository", ["userId", "repositoryId"]),
 
+  // Track documents synced to GitHub repositories
+  githubDocumentSync: defineTable({
+    documentId: v.id("documents"),
+    repositoryId: v.id("githubRepositories"),
+    userId: v.id("users"),
+    filePath: v.string(), // The file path in the repository
+    lastCommitSha: v.optional(v.string()), // Last commit SHA
+    lastSyncedAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_document", ["documentId"])
+    .index("by_repository", ["repositoryId"])
+    .index("by_user", ["userId"])
+    .index("by_document_repository", ["documentId", "repositoryId"]),
+
   documentVersions: defineTable({
     documentId: v.id("documents"),
     content: v.any(), // Historical content
@@ -140,4 +156,42 @@ export default defineSchema({
   })
     .index("by_document", ["documentId"])
     .index("by_uploader", ["uploadedBy"]),
+
+  // Audit log for security-sensitive operations
+  securityAuditLog: defineTable({
+    userId: v.id("users"),
+    action: v.string(), // e.g., "repo_added", "token_added", "sync_performed", "access_denied"
+    resource: v.string(), // e.g., "github_repository", "access_token", "document_sync"
+    resourceId: v.optional(v.string()), // ID of the resource being acted upon
+    details: v.optional(v.any()), // Additional context (repository name, error message, etc.)
+    ipAddress: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    success: v.boolean(), // Whether the action succeeded
+    timestamp: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_action", ["action"])
+    .index("by_timestamp", ["timestamp"])
+    .index("by_user_timestamp", ["userId", "timestamp"]),
+
+  // Repository approval requests
+  repositoryApprovalRequests: defineTable({
+    requesterId: v.id("users"), // User requesting to add the repository
+    repoUrl: v.string(), // Repository URL
+    owner: v.string(), // Repository owner
+    repoName: v.string(), // Repository name
+    justification: v.optional(v.string()), // Why they want to add this repo
+    status: v.string(), // "pending", "approved", "rejected"
+    adminEmail: v.string(), // Email where approval request was sent
+    approvalToken: v.string(), // Unique token for approval link
+    approvedBy: v.optional(v.string()), // Admin email who approved/rejected
+    approvedAt: v.optional(v.number()), // When approved/rejected
+    expiresAt: v.number(), // When the approval request expires
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_requester", ["requesterId"])
+    .index("by_status", ["status"])
+    .index("by_approval_token", ["approvalToken"])
+    .index("by_repo", ["owner", "repoName"]),
 });

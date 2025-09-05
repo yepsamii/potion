@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useAction } from 'convex/react'
 import { api } from '../../convex/_generated/api'
-import { Github, Lock, Unlock, ExternalLink, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Github, Lock, Unlock, ExternalLink, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -33,6 +33,24 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
   // Get user repository access (repositories with personal access tokens)
   const userRepositoryAccess = useQuery(api.github.getUserRepositoryAccess)
   const syncToRepository = useAction(api.github.syncDocumentToRepository)
+  
+  // Get existing syncs for this document
+  const documentSyncs = useQuery(
+    api.github.getDocumentSyncedRepositories,
+    document ? { documentId: document._id } : "skip"
+  )
+
+  // Check if selected repository has an existing sync
+  const existingSync = documentSyncs?.find(sync => sync.repositoryId === selectedRepository)
+  
+  // Update custom path when repository selection changes
+  useEffect(() => {
+    if (existingSync) {
+      setCustomPath(existingSync.filePath)
+    } else {
+      setCustomPath('')
+    }
+  }, [selectedRepository, existingSync])
 
   const handleSync = async () => {
     if (!selectedRepository || !document) return
@@ -46,13 +64,16 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
         filePath: customPath.trim() || undefined,
       })
 
-      toast.success('Document synced to GitHub successfully!')
+      const message = result.isUpdate 
+        ? 'Document updated in GitHub repository!' 
+        : 'Document synced to GitHub successfully!'
+      toast.success(message)
       
       // Show success details
       if (result.url) {
         toast.success(
           <div>
-            <p>File synced: <strong>{result.filePath}</strong></p>
+            <p>File {result.isUpdate ? 'updated' : 'synced'}: <strong>{result.filePath}</strong></p>
             <a 
               href={result.url} 
               target="_blank" 
@@ -115,21 +136,30 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
                 <SelectContent>
                   {userRepositoryAccess
                     .filter(item => item.userAccess?.hasToken)
-                    .map((item) => (
-                    <SelectItem key={item._id} value={item._id}>
-                      <div className="flex items-center gap-2 w-full">
-                        <span className="font-medium">{item.owner}/{item.repoName}</span>
-                        <div className="flex items-center gap-1 ml-auto">
-                          <Badge variant="outline" className="text-xs">
-                            {item.userAccess.hasAccess ? item.userAccess.accessLevel : "unverified"}
-                          </Badge>
-                          {item.userAccess.hasAccess && (
-                            <CheckCircle className="w-3 h-3 text-green-600" />
-                          )}
-                        </div>
-                      </div>
-                    </SelectItem>
-                  ))}
+                    .map((item) => {
+                      const syncedToThisRepo = documentSyncs?.find(sync => sync.repositoryId === item._id)
+                      return (
+                        <SelectItem key={item._id} value={item._id}>
+                          <div className="flex items-center gap-2 w-full">
+                            <span className="font-medium">{item.owner}/{item.repoName}</span>
+                            <div className="flex items-center gap-1 ml-auto">
+                              {syncedToThisRepo && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <RefreshCw className="w-3 h-3 mr-1" />
+                                  Synced
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className="text-xs">
+                                {item.userAccess.hasAccess ? item.userAccess.accessLevel : "unverified"}
+                              </Badge>
+                              {item.userAccess.hasAccess && (
+                                <CheckCircle className="w-3 h-3 text-green-600" />
+                              )}
+                            </div>
+                          </div>
+                        </SelectItem>
+                      )
+                    })}
                 </SelectContent>
               </Select>
             ) : (
@@ -147,17 +177,28 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
 
           {/* Selected Repository Info */}
           {selectedRepo && (
-            <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+            <div className={`p-4 rounded-lg border ${existingSync ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800' : 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'}`}>
               <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="w-4 h-4 text-green-600" />
-                <span className="font-medium text-green-900 dark:text-green-100">
-                  {selectedRepo.owner}/{selectedRepo.repoName}
-                </span>
+                {existingSync ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 text-blue-600" />
+                    <span className="font-medium text-blue-900 dark:text-blue-100">
+                      Updating existing sync: {selectedRepo.owner}/{selectedRepo.repoName}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="font-medium text-green-900 dark:text-green-100">
+                      New sync: {selectedRepo.owner}/{selectedRepo.repoName}
+                    </span>
+                  </>
+                )}
                 <a
                   href={selectedRepo.repoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-green-600 hover:text-green-800"
+                  className={existingSync ? "text-blue-600 hover:text-blue-800" : "text-green-600 hover:text-green-800"}
                 >
                   <ExternalLink className="w-4 h-4" />
                 </a>
@@ -166,26 +207,43 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
                 <Badge variant="outline" className="text-xs">
                   {selectedAccess?.accessLevel} access
                 </Badge>
-                {selectedAccess?.lastSyncedAt && (
+                {existingSync && (
+                  <span className="text-xs text-blue-600">
+                    Last synced: {new Date(existingSync.lastSyncedAt).toLocaleDateString()}
+                  </span>
+                )}
+                {selectedAccess?.lastSyncedAt && !existingSync && (
                   <span className="text-xs text-green-600">
-                    Last synced: {new Date(selectedAccess.lastSyncedAt).toLocaleDateString()}
+                    Repository last used: {new Date(selectedAccess.lastSyncedAt).toLocaleDateString()}
                   </span>
                 )}
               </div>
+              {existingSync && (
+                <div className="mt-2 text-xs text-blue-700 dark:text-blue-300">
+                  Current file path: <code className="bg-blue-100 dark:bg-blue-900/30 px-1 rounded">{existingSync.filePath}</code>
+                </div>
+              )}
             </div>
           )}
 
           {/* File Path */}
           <div className="space-y-2">
-            <Label htmlFor="filePath">File Path (optional)</Label>
+            <Label htmlFor="filePath">
+              File Path {existingSync ? '(leave empty to keep current path)' : '(optional)'}
+            </Label>
             <Input
               id="filePath"
-              placeholder={defaultPath}
+              placeholder={existingSync ? existingSync.filePath : defaultPath}
               value={customPath}
               onChange={(e) => setCustomPath(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
               Will be saved as: <code className="bg-muted px-1 rounded">{finalPath}</code>
+              {existingSync && customPath !== existingSync.filePath && customPath !== '' && (
+                <span className="text-amber-600 ml-2">
+                  (changing from: {existingSync.filePath})
+                </span>
+              )}
             </p>
           </div>
 
@@ -229,12 +287,21 @@ export default function GitHubSyncModal({ isOpen, onClose, document }) {
             {isLoading ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Syncing...
+                {existingSync ? 'Updating...' : 'Syncing...'}
               </>
             ) : (
               <>
-                <Github className="w-4 h-4" />
-                Sync to GitHub
+                {existingSync ? (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Update in GitHub
+                  </>
+                ) : (
+                  <>
+                    <Github className="w-4 h-4" />
+                    Sync to GitHub
+                  </>
+                )}
               </>
             )}
           </Button>

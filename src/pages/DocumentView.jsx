@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
@@ -46,6 +46,9 @@ export default function DocumentView() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showGitHubSync, setShowGitHubSync] = useState(false)
+  const [isNewDocument, setIsNewDocument] = useState(false)
+  const editorRef = useRef(null)
+  const titleInputRef = useRef(null)
 
   const document = useQuery(api.documents.getDocument, { id })
   const updateDocument = useMutation(api.documents.updateDocument)
@@ -57,8 +60,22 @@ export default function DocumentView() {
 
   useEffect(() => {
     if (document) {
+      // Check if this is a new document (e.g., title is "Untitled" or empty)
+      const isNew = !document.title || document.title === 'Untitled' || document.title === 'New Document'
+      setIsNewDocument(isNew)
+      
       setTitle(document.title)
       setEmoji(document.emoji || '📄')
+      
+      // Auto-focus on title for new documents
+      if (isNew && !isEditingTitle) {
+        setIsEditingTitle(true)
+        // Small delay to ensure the input is rendered
+        setTimeout(() => {
+          titleInputRef.current?.focus()
+          titleInputRef.current?.select()
+        }, 100)
+      }
     }
   }, [document])
 
@@ -169,6 +186,7 @@ export default function DocumentView() {
             {/* Title */}
             {isEditingTitle ? (
               <Input
+                ref={titleInputRef}
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -178,8 +196,16 @@ export default function DocumentView() {
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
+                    e.preventDefault()
                     setIsEditingTitle(false)
                     handleTitleChange(title)
+                    // Focus the editor after updating title
+                    setTimeout(() => {
+                      const editorElement = document.querySelector('.bn-editor')
+                      if (editorElement) {
+                        editorElement.focus()
+                      }
+                    }, 100)
                   }
                   if (e.key === 'Escape') {
                     setIsEditingTitle(false)
@@ -352,6 +378,7 @@ export default function DocumentView() {
       {/* Editor */}
       <div className="editor-container">
         <Editor
+          ref={editorRef}
           content={document.content}
           onChange={handleContentChange}
           placeholder="Start writing..."
